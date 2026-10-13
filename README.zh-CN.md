@@ -46,7 +46,7 @@
 |---|---|
 | **NarewStudio.exe** | 制作模组。游戏文件**只读**，修改的文件和新增的条目都保存到模组项目中 |
 | **NarewModManager.exe** | 启用/禁用模组、调整顺序、应用到游戏、恢复原版 |
-| **NarewAgent.exe** | AI 智能体连接程序（控制台）。通过 MCP 和命令行把 NarewStudio 的功能提供为 108 个工具 |
+| **NarewAgent.exe** | AI 智能体连接程序（控制台）。通过 MCP 和命令行把 NarewStudio 的功能提供为 109 个工具 |
 | `narew`（Python） | 命令行工具：解包/打包 .pack、模型 ↔ glTF、方块（体素）文件转换等（从源码运行） |
 
 ## 功能
@@ -290,7 +290,7 @@ my-mod/
 
 ## 连接 AI 智能体
 
-NarewStudio 的全部功能以 **108 个工具**提供（地图·建筑·家具摆放，新方块·家具·物品·音效，任意游戏文件，XML 表，GUI，声音，模型，包，模组管理器）。
+NarewStudio 的全部功能以 **109 个工具**提供（地图·建筑·家具摆放，新方块·家具·物品·音效，任意游戏文件，XML 表，GUI，声音，模型，包，模组管理器）。
 智能体通过 ASCII 地图和图片（俯视地图、3D、GUI、模型、波形）检查结果。
 
 | 3D 图（`world_render` view=iso） | 俯视平面图（view=top） |
@@ -522,7 +522,7 @@ AGENTS.md    给 AI 智能体的说明；.mcp.json = Claude Code 的 MCP 服务�
 | [06 程序说明书](docs/06-studio-modmanager.md) | NarewStudio 与 NarewModManager 详解 |
 | [07 新内容](docs/07-new-content.md) | 引擎上限、表合并规则 |
 | [08 GUI 布局](docs/08-gui-layout.md) | 编辑 `Gui\*.xml` |
-| [09 AI 智能体](docs/09-ai-agents.md) | 108 个工具、连接、安全机制 |
+| [09 AI 智能体](docs/09-ai-agents.md) | 109 个工具、连接、安全机制 |
 
 文档中提到的 `re/` 分析产物（游戏二进制转储、反编译结果）未包含在本仓库中。
 

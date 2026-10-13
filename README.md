@@ -42,7 +42,7 @@
 |---|---|
 | **NarewStudio.exe** | 모드 만들기. 게임 파일은 **읽기만** 하고, 바꾼 파일과 추가한 항목은 모드 프로젝트에 저장 |
 | **NarewModManager.exe** | 만든/받은 모드를 켜고 끄고 순서를 정해 게임에 적용, 원본 복구 |
-| **NarewAgent.exe** | AI 에이전트용 연결 프로그램(콘솔). MCP 서버와 명령줄로 NarewStudio의 기능을 도구 108개로 제공 |
+| **NarewAgent.exe** | AI 에이전트용 연결 프로그램(콘솔). MCP 서버와 명령줄로 NarewStudio의 기능을 도구 109개로 제공 |
 | `narew` (Python) | 팩 풀기/만들기, 모델 ↔ glTF, 브릭(복셀) 파일 변환 등 명령줄 도구 (소스에서 실행) |
 
 ## 기능
@@ -286,7 +286,7 @@ NarewStudio는 열 때마다 빈 번호를 다시 계산합니다. 게임 업데
 
 ## AI 에이전트 연결
 
-NarewStudio의 모든 기능이 **도구 108개**(맵·건물·가구 배치, 새 블록·가구·아이템·사운드, 모든 게임 파일, XML 표, GUI, 사운드, 모델, 팩, 모드 매니저)로 제공됩니다.
+NarewStudio의 모든 기능이 **도구 109개**(맵·건물·가구 배치, 새 블록·가구·아이템·사운드, 모든 게임 파일, XML 표, GUI, 사운드, 모델, 팩, 모드 매니저)로 제공됩니다.
 에이전트는 ASCII 지도와 그림(위에서 본 지도·3D·GUI·모델·파형)으로 결과를 확인합니다.
 
 | 3D 그림 (`world_render` view=iso) | 위에서 본 평면도 (view=top) |
@@ -518,7 +518,7 @@ AGENTS.md    AI 에이전트용 안내, .mcp.json = Claude Code용 MCP 서버 �
 | [06 프로그램 설명서](docs/06-studio-modmanager.md) | NarewStudio·NarewModManager 상세 |
 | [07 새 콘텐츠](docs/07-new-content.md) | 엔진 한도, 표 병합 규칙 |
 | [08 GUI 레이아웃](docs/08-gui-layout.md) | `Gui\*.xml` 편집 |
-| [09 AI 에이전트](docs/09-ai-agents.md) | 도구 108개, 연결, 안전장치 |
+| [09 AI 에이전트](docs/09-ai-agents.md) | 도구 109개, 연결, 안전장치 |
 
 문서에 나오는 `re/` 분석 산출물(게임 바이너리 덤프·디컴파일 결과)은 저장소에 포함하지 않았습니다.
 

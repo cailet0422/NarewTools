@@ -118,7 +118,7 @@
 | `studio/` | NarewStudio — `core.py`(게임·프로젝트), `svc_*.py`(기능), `creator.py`(새 리소스), `gl/`(OpenGL 렌더러: 복셀 메셔·레이캐스트, glTF·GPU 스키닝), `ui/`(Qt 화면) |
 | `modmanager/` | NarewModManager — `core.py` 적용 엔진, `ui.py` 화면 |
 | `tests/` | `test_xmlmerge.py`, `test_creator.py`, `test_place_products.py`(설치물 놓기·저장·엄격 재읽기), `test_gui_editor.py`(GUI 편집: 옮기기·새 요소·글자·여러 개 선택·지우기), `test_sound_editor.py`(사운드 편집·재생·형식 유지), `test_pack_lock.py`(Studio가 열려 있어도 모드 매니저가 팩을 바꿀 수 있는지), `test_footprint.py`(충돌 칸 규칙), `test_modmanager.py`(가짜 게임 폴더), `test_savedworlds.py`(월드 저장본·캡처 창·단축키, 가짜 게임 폴더), `smoke_ui.py`·`smoke_modmanager.py`(화면 점검·스크린샷), `test_render_*.py`(오프스크린 렌더) |
-| `studio/agent/`, `studio/worldedit.py`, `studio/ui/agentlink.py` | AI 에이전트용 도구 108개(MCP 서버·명령줄), 화면 없는 월드 편집, 창과의 연결 — [docs/09](09-ai-agents.md) |
+| `studio/agent/`, `studio/worldedit.py`, `studio/ui/agentlink.py` | AI 에이전트용 도구 109개(MCP 서버·명령줄), 화면 없는 월드 편집, 창과의 연결 — [docs/09](09-ai-agents.md) |
 | `tests/test_agent.py`, `tests/test_agent_live.py` | 에이전트 도구 전체(가짜 게임 폴더) + MCP/명령줄, 실제 창과 에이전트 프로세스의 실시간 연동 |
 | `tools/build_exe.py` | PyInstaller로 세 exe(NarewStudio·NarewModManager·NarewAgent)를 한 폴더에 빌드, 자체 점검 후 zip |
 

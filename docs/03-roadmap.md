@@ -27,7 +27,7 @@
 - 코드 모드(게임플레이 로직)가 필요할 때만 프록시 DLL을 검토 (`WINMM.dll` import, export된 심볼로 후킹 지점 탐색)
 
 ## 단계 3½ — AI 에이전트 (완료, 2026-10-14)
-- [x] NarewStudio 전 기능을 도구 108개로: MCP 서버(stdio, 표준 라이브러리) + 명령줄 + JSON lines ([docs/09](09-ai-agents.md))
+- [x] NarewStudio 전 기능을 도구 109개로: MCP 서버(stdio, 표준 라이브러리) + 명령줄 + JSON lines ([docs/09](09-ai-agents.md))
 - [x] 화면 없는 월드 편집(`studio/worldedit.py`) — 3D 에디터와 같은 가구 규칙, 되돌리기, 저장·내 월드에 적용
 - [x] 에이전트의 눈: ASCII 층·단면·높이 지도, 그림(위·3D·GUI·모델·파형)
 - [x] 열린 NarewStudio 창과 실시간 연동(다시 읽기·화면 열기·지금 보는 곳 알리기)

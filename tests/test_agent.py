@@ -184,6 +184,61 @@ check('placed chairs in saved file', n_prod >= 3, n_prod)
 check('saved brick', w2.get(X0 + 1, Y + 5, Z0 + 1) == GLASS)
 check('saved start', abs(w2.tail.start_pos[0] - (X0 + 4.5)) < 1e-4)
 
+# lights: a lamp only shines in game with the object state bit IsUse (0x10)
+LAMP = next((p['id'] for p in pl if p['kind'] == 'on' and p['size_xyz'] == [1, 1, 1]), None)
+check('a 1x1x1 lamp product exists', LAMP is not None)
+b_on, b_off = (brick.new_product(ctx.world.product_table().get(LAMP), 1, 2, 3, 1, **k).to_bytes()
+                for k in ({'state': brick.STATE_ON}, {}))
+check('new_product: same header, only the state byte differs', len(b_on) == len(b_off) and b_on[11:13] == b'\x01\x10'
+      and [i for i in range(len(b_on)) if b_on[i] != b_off[i]] == [12])
+LA, LB = (X0 + 6, Y + 1, Z0 + 1), (X0 + 7, Y + 1, Z0 + 5)
+r = must('world_place', session=W, product=LAMP, x=LA[0], z=LA[2], y=LA[1])
+check('lamp placed on by default', r.get('ok') and r.get('on') is True, r)
+r = must('world_place_many', session=W, items=[{'product': LAMP, 'x': LB[0], 'z': LB[2], 'y': LB[1], 'on': False}])
+check('place_many: lamp placed off', [p.get('on') for p in r.get('placed', [])] == [False], r)
+HOUSE = [X0, Y, Z0, X0 + 8, Y + 4, Z0 + 6]
+lamps = {tuple(o['pos']): o for o in must('world_objects', session=W, box=HOUSE, product=LAMP)['objects']}
+check('world_objects reports on/off', lamps.get(LA, {}).get('on') is True and lamps.get(LB, {}).get('on') is False, lamps)
+chairs = must('world_objects', session=W, box=HOUSE, product=CHAIR)['objects']
+check('no "on" for a chair', chairs and 'on' not in chairs[0])
+check('world_info counts lights', must('world_info', session=W)['objects'].get('lights', {}).get('off', 0) >= 1)
+must('world_save', session=W)
+
+
+def lamp_states():
+    w = brick.World.from_bytes(ctx.st.read('map\\64_0.bwr', 'base'), ctx.world.product_table(), strict=True)
+    return {(o.x, o.y, o.z): o.state for _, o in w.iter_objects() if o.kind == brick.OBJ_PRODUCT and o.type_id == LAMP}
+
+
+ls1 = lamp_states()
+check('saved lamp has state bit 0x10', ls1.get(LA, 0) & brick.STATE_ON, ls1)
+check('lamp placed off saved without it', LB in ls1 and not ls1[LB] & brick.STATE_ON, ls1)
+lamps = {tuple(o['pos']): o['id'] for o in must('world_objects', session=W, box=HOUSE, product=LAMP)['objects']}
+r = must('world_switch', session=W, ids=[lamps[LA]], on=False)
+check('switch lamp off', len(r.get('switched', [])) == 1 and r.get('undo_steps') == 1, r)
+r = must('world_switch', session=W, box=HOUSE, on=False)
+check('switch in a box: both already off, nothing recorded', r.get('already') == 2 and not r.get('switched')
+      and r.get('undo_steps') == 1, r)
+must('world_undo', session=W)
+now = {tuple(o['pos']): o['on'] for o in must('world_objects', session=W, box=HOUSE, product=LAMP)['objects']}
+check('undo turns it on again', now.get(LA) is True, now)
+must('world_redo', session=W)
+chair_now = must('world_objects', session=W, box=HOUSE, product=CHAIR)['objects'][0]['id']
+r = must('world_switch', session=W, ids=[lamps[LB], chair_now], on=True)
+check('switch on by id, chair skipped', len(r.get('switched', [])) == 1 and len(r.get('skipped', [])) == 1, r)
+check('switching only a chair is refused', not T('world_switch', session=W, ids=[chair_now])[0])
+cp = must('world_copy', session=W, box=[LA[0], Y + 1, LA[2], LB[0], Y + 1, LB[2]])
+r = must('world_paste', session=W, clip=cp.get('clip'), at=[LA[0], Y + 48, LA[2]])
+pasted = {tuple(o['pos']): o['on'] for o in must('world_objects', session=W, product=LAMP,
+                                                   box=[LA[0], Y + 48, LA[2], LB[0], Y + 48, LB[2]])['objects']}
+check('paste keeps on/off', pasted == {(LA[0], Y + 48, LA[2]): False, (LB[0], Y + 48, LB[2]): True}, pasted)
+must('world_undo', session=W)
+must('world_save', session=W)
+ls2 = lamp_states()
+check('switched off: saved without 0x10', LA in ls2 and not ls2[LA] & brick.STATE_ON, ls2)
+check('switched on: saved with 0x10', ls2.get(LB, 0) & brick.STATE_ON, ls2)
+check('pasted lamps were undone', len(ls2) == len(ls1), (ls1, ls2))
+
 # prefab session + paste prefab
 d = must('world_open', name='Architecture\\building\\agent_house.iaf')
 P = d['session']

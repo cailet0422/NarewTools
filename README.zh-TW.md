@@ -46,7 +46,7 @@
 |---|---|
 | **NarewStudio.exe** | 製作模組。遊戲檔案**唯讀**，修改的檔案與新增的項目都儲存到模組專案中 |
 | **NarewModManager.exe** | 啟用/停用模組、調整順序、套用到遊戲、還原原版 |
-| **NarewAgent.exe** | AI 代理連接程式（主控台）。透過 MCP 與命令列，把 NarewStudio 的功能提供為 108 個工具 |
+| **NarewAgent.exe** | AI 代理連接程式（主控台）。透過 MCP 與命令列，把 NarewStudio 的功能提供為 109 個工具 |
 | `narew`（Python） | 命令列工具：解包/打包 .pack、模型 ↔ glTF、方塊（體素）檔案轉換等（從原始碼執行） |
 
 ## 功能
@@ -290,7 +290,7 @@ my-mod/
 
 ## 連接 AI 代理
 
-NarewStudio 的全部功能以 **108 個工具**提供（地圖·建築·家具擺放，新方塊·家具·物品·音效，任意遊戲檔案，XML 表格，GUI，聲音，模型，封包，模組管理器）。
+NarewStudio 的全部功能以 **109 個工具**提供（地圖·建築·家具擺放，新方塊·家具·物品·音效，任意遊戲檔案，XML 表格，GUI，聲音，模型，封包，模組管理器）。
 代理會透過 ASCII 地圖與圖片（俯視地圖、3D、GUI、模型、波形）確認結果。
 
 | 3D 圖（`world_render` view=iso） | 俯視平面圖（view=top） |
@@ -522,7 +522,7 @@ AGENTS.md    給 AI 代理的說明；.mcp.json = Claude Code 的 MCP 伺服器�
 | [06 程式說明書](docs/06-studio-modmanager.md) | NarewStudio 與 NarewModManager 詳解 |
 | [07 新內容](docs/07-new-content.md) | 引擎上限、表格合併規則 |
 | [08 GUI 配置](docs/08-gui-layout.md) | 編輯 `Gui\*.xml` |
-| [09 AI 代理](docs/09-ai-agents.md) | 108 個工具、連接、安全機制 |
+| [09 AI 代理](docs/09-ai-agents.md) | 109 個工具、連接、安全機制 |
 
 文件中提到的 `re/` 分析產物（遊戲二進位傾印、反編譯結果）未包含在本儲存庫中。
 

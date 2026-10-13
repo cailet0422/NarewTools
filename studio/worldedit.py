@@ -122,6 +122,7 @@ class EditSession:
         self.redo_stack: list[dict] = []
         self.added: dict[tuple, tuple] = {}         # ('new', n) -> (type, x, y, z, rot)
         self.deleted: set[tuple] = set()
+        self.states: dict[tuple, int] = {}          # object key -> state byte set in this session
         self._n = 0
         self._op: dict | None = None
         self.objects = doc.objects()
@@ -209,15 +210,21 @@ class EditSession:
     def find_object(self, key):
         return next((o for o in self.live_objects() if o[0] == key), None)
 
+    def state_of(self, key) -> int:
+        """State byte of a live object (bit brick.STATE_ON = a lamp is on)."""
+        if key in self.states:
+            return self.states[key]
+        return 0 if key[0] == 'new' else self.doc.object_state(*key)
+
     # ------------------------------------------------------------------ recording
     def begin(self, label: str):
-        self._op = {'label': label, 'cells': [], 'added': [], 'deleted': [], 'start': None}
+        self._op = {'label': label, 'cells': [], 'added': [], 'deleted': [], 'start': None, 'states': []}
 
     def end(self) -> dict:
         """Close the operation: push it on the undo history when it changed anything."""
         op, self._op = self._op, None
         n = sum(len(c[1]) for c in op['cells'])
-        if n or op['added'] or op['deleted'] or op['start']:
+        if n or op['added'] or op['deleted'] or op['start'] or op['states']:
             self.undo_stack.append(op)
             self.redo_stack.clear()
         return {'changed': n, 'placed': len(op['added']), 'deleted': len(op['deleted'])}
@@ -361,18 +368,38 @@ class EditSession:
         return product_check(self.doc, product_id, cell, rot & 3, self.get,
                              lambda x, y, z: self.inside(x, y, z), list(self.live_objects()))
 
-    def place_product(self, product_id: int, x: int, y: int, z: int, rot: int = 0) -> tuple:
-        """Place a product (object + collision bricks). Returns its key."""
+    def place_product(self, product_id: int, x: int, y: int, z: int, rot: int = 0, state: int | None = None) -> tuple:
+        """Place a product (object + collision bricks). Returns its key.  state None = as freshly
+        placed in game (brick.placed_state: a lamp is on)."""
         ok, why, cells = self.check_product(product_id, (x, y, z), rot)
         if not ok:
             raise StudioError(f'설치물 #{product_id}을(를) ({x}, {y}, {z})에 놓을 수 없습니다: {why}')
+        if state is None:
+            state = brick.placed_state(self.doc.products.get(product_id))
+        if not 0 <= state <= 255:
+            raise StudioError(f'오브젝트 상태는 0~255입니다: {state}')
         self.write_cells([(*c, COLLISION) for c in cells], keep_collision=False)
         self._n += 1
         key = ('new', self._n)
         info = (int(product_id), int(x), int(y), int(z), rot & 3)
         self.added[key] = info
         self._op['added'].append((key, info))
+        if state:
+            self.set_state(key, state)
         return key
+
+    def set_state(self, key, state: int) -> bool:
+        """Change the state byte of a live object (part of the open operation). False = it already had it."""
+        if self.find_object(key) is None:
+            raise StudioError(f'없는 오브젝트입니다: {object_id(key) if isinstance(key, tuple) else key}')
+        state = int(state)
+        if not 0 <= state <= 255:
+            raise StudioError(f'오브젝트 상태는 0~255입니다: {state}')
+        if self.state_of(key) == state:
+            return False
+        self._op['states'].append((key, self.states.get(key), state))
+        self.states[key] = state
+        return True
 
     def delete_object(self, key) -> tuple:
         """Delete a tree or product; a product's collision bricks no other product needs are cleared."""
@@ -415,6 +442,12 @@ class EditSession:
                 self.deleted.discard(key)
             else:
                 self.deleted.add(key)
+        for key, old, new in reversed(op['states']) if back else op['states']:
+            v = old if back else new
+            if v is None:
+                self.states.pop(key, None)
+            else:
+                self.states[key] = v
         if op['start']:
             self.start_pos = list(op['start'][0] if back else op['start'][1])
             self.start_changed = True
@@ -449,17 +482,18 @@ class EditSession:
     def _edits(self):
         regions = {k: self.arrays[k] for k in self.modified if k in self.arrays}
         deleted = [k for k in self.deleted if k[0] != 'new']
-        added = [info for k, info in self.added.items() if k not in self.deleted]
-        return regions, deleted, (self.start_pos if self.start_changed else None), added
+        added = [(*info, self.state_of(k)) for k, info in self.added.items() if k not in self.deleted]
+        states = {k: v for k, v in self.states.items() if k[0] != 'new' and k not in self.deleted}
+        return regions, deleted, (self.start_pos if self.start_changed else None), added, states
 
     def save(self, path: str | None = None) -> int:
         """Into the mod project (worlds/prefabs from the packs) or to a .bwr file (path, or the
         document's own file).  Game saves (Local\\, backup_map\\) are refused by WorldService."""
-        regions, deleted, start, added = self._edits()
+        regions, deleted, start, added, states = self._edits()
         if path or self.doc.path:
-            n = self.svc.save_as(self.doc, path or self.doc.path, regions, deleted, start, added)
+            n = self.svc.save_as(self.doc, path or self.doc.path, regions, deleted, start, added, states)
         else:
-            n = self.svc.save(self.doc, regions, deleted, start, added)
+            n = self.svc.save(self.doc, regions, deleted, start, added, states)
         self.mark_saved()
         return n
 
@@ -468,6 +502,7 @@ class EditSession:
         self.modified.clear()
         self.deleted.clear()
         self.added.clear()
+        self.states.clear()
         self.start_changed = False
         self.objects = self.doc.objects()
         sp = self.doc.start_pos()

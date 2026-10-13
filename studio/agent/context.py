@@ -15,7 +15,7 @@ class Clip:
 
     def __init__(self, arr, products, source: str):
         self.arr = arr
-        self.products = products             # [(type, dx, dy, dz, rot)]
+        self.products = products             # [(type, dx, dy, dz, rot, state)]
         self.source = source
 
     @property

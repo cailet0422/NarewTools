@@ -3,7 +3,8 @@
     python tests/test_place_products.py <game dir> <scratch dir>
 
 Opens map\\64_0.bwr in the real WorldView, places/rotates/undoes/deletes products, saves to a
-scratch .bwr and re-reads it strictly (every object must decode with the engine's size rules).
+scratch .bwr and re-reads it strictly (every object must decode with the engine's size rules;
+a lamp is saved switched on).
 """
 import os
 import sys
@@ -72,7 +73,7 @@ def free_spot(pid, rot):
 
 
 placed = {}
-for pid, rot in ((1, 0), (175, 1), (261, 2), (830, 3)):
+for pid, rot in ((324, 0), (1, 0), (175, 1), (261, 2), (830, 3)):      # 324 = a lamp
     a = free_spot(pid, rot)
     view.product, view.rot = pid, rot
     ok = view.place_product(a)
@@ -88,9 +89,9 @@ check(f'unsupported #{sign["id"]} ({sign["event"]}) refused', not view.place_pro
 # undo / redo the last placement
 a830, r830 = placed[830]
 view.undo()
-check('undo removes object and collision', len(view.added) == 3 and all(view.store.get(*c) == 0 for c in cells_of(830, r830, a830)))
+check('undo removes object and collision', len(view.added) == 4 and all(view.store.get(*c) == 0 for c in cells_of(830, r830, a830)))
 view.redo()
-check('redo puts them back', len(view.added) == 4 and all(view.store.get(*c) == 255 for c in cells_of(830, r830, a830)))
+check('redo puts them back', len(view.added) == 5 and all(view.store.get(*c) == 255 for c in cells_of(830, r830, a830)))
 
 # delete a new object, then undo the delete
 key1 = next(k for k, v in view.added.items() if v[0] == 1)
@@ -107,20 +108,23 @@ check('delete shipped product clears its collision', all(view.store.get(*c) == 0
 
 # save as a new file and read it back strictly
 deleted, added = view.object_edits()
-check('edits to save: 1 deleted, 4 added', len(deleted) == 1 and len(added) == 4)
+check('edits to save: 1 deleted, 5 added', len(deleted) == 1 and len(added) == 5)
 regions = {k: view.store.regions[k] for k in view.store.modified}
 out = os.path.join(SCRATCH, '64_0_furnished.bwr')
 svc.save_as(doc, out, regions, deleted, None, added)
 view.mark_saved()
 w = brick.World.read(out, doc.products, strict=True)
 objs = {(o.x, o.y, o.z): o for _, o in w.iter_objects()}
-check('strict re-read: object count', len(objs) == len({(o[5], o[6], o[7]) for o in before}) - 1 + 4)
+check('strict re-read: object count', len(objs) == len({(o[5], o[6], o[7]) for o in before}) - 1 + 5)
 for pid, (a, rot) in placed.items():
     o = objs.get(a)
     pt = doc.products.get(pid)
     good = o is not None and o.type_id == pid and o.rot == rot and o.hp == pt.hp and o.extra == brick.new_product_extra(pt)
     check(f'#{pid} saved with rot {rot}, hp and extra', good)
+    check(f'#{pid} saved with state {brick.placed_state(pt)}', o is not None and o.state == brick.placed_state(pt))
     check(f'#{pid} collision saved', all(w.get(*c) == 255 for c in cells_of(pid, rot, a)))
+check('the lamp is saved on (state bit 0x10)', brick.switchable(doc.products.get(324))
+      and objs.get(placed[324][0]) and objs[placed[324][0]].state & brick.STATE_ON)
 check('deleted shipped product gone', (old[3], old[4], old[5]) not in objs)
 check('view refreshed after save', not view.added and not view.deleted
       and len(view.objects) == len(objs) and not view.undo_stack)

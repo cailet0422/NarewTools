@@ -56,6 +56,11 @@ class WorldDoc:
                     out.append((r.rx, r.rz, j, o.kind, o.type_id, o.x, o.y, o.z, o.rot))
         return out
 
+    def object_state(self, rx: int, rz: int, index: int) -> int:
+        """State byte of an object in the file (bit brick.STATE_ON = a lamp is on)."""
+        objs = self.obj.region(rx, rz).objects if self.is_world else None
+        return objs[index].state if objs and 0 <= index < len(objs) else 0
+
     def start_pos(self):
         return self.obj.tail.start_pos if self.is_world else None
 
@@ -193,10 +198,12 @@ class WorldService:
             self.sessions[path] = (sig, doc)
         return doc
 
-    def _apply_edits(self, doc: WorldDoc, regions, deleted_objects, start_pos, added_objects=()):
-        # check new objects before changing anything
+    def _apply_edits(self, doc: WorldDoc, regions, deleted_objects, start_pos, added_objects=(), states=None):
+        """added_objects: (type, x, y, z, rot[, state]) - without a state a lamp is placed on
+        (brick.placed_state); states: {(rx, rz, index): state} for objects already in the file."""
+        # check new objects and state changes before changing anything
         new_objs = []
-        for type_id, x, y, z, rot in added_objects:
+        for type_id, x, y, z, rot, *state in added_objects:
             if not doc.is_world:
                 raise StudioError('설치물은 월드(.bwr)에만 놓을 수 있습니다')
             pt = doc.products.get(type_id)
@@ -205,9 +212,16 @@ class WorldService:
             if not doc.objects_decoded(x // brick.SIDE, z // brick.SIDE):
                 raise StudioError(f'({x}, {z}) 영역의 오브젝트는 해석되지 않아 설치물을 더할 수 없습니다')
             try:
-                new_objs.append(brick.new_product(pt, x, y, z, rot))
+                new_objs.append(brick.new_product(pt, x, y, z, rot, state=int(state[0]) if state
+                                                  else brick.placed_state(pt)))
             except brick.BrickError as ex:
                 raise StudioError(str(ex))
+        for (rx, rz, j), v in (states or {}).items():
+            objs = doc.obj.region(rx, rz).objects if doc.is_world else None
+            if objs is None or not 0 <= j < len(objs):
+                raise StudioError(f'상태를 바꿀 오브젝트 o:{rx}:{rz}:{j}이(가) 없거나 해석되지 않은 영역입니다')
+            if not 0 <= int(v) <= 255:
+                raise StudioError(f'오브젝트 상태는 0~255입니다: {v}')
         for (rx, rz), arr in regions.items():
             col = doc.column(rx, rz)
             raw = np.ascontiguousarray(arr, dtype=np.uint8).tobytes()
@@ -219,6 +233,8 @@ class WorldService:
             else:
                 doc.obj.groups[rz * doc.rx + rx] = new
         if doc.is_world:
+            for (rx, rz, j), v in (states or {}).items():      # before the deletions: indices of the file
+                doc.obj.region(rx, rz).objects[j].state = int(v)
             for rx, rz, j in sorted(deleted_objects, key=lambda t: -t[2]):
                 r = doc.obj.region(rx, rz)
                 if r.objects is None:
@@ -231,20 +247,22 @@ class WorldService:
                 doc.obj.tail.set_start_pos(*map(float, start_pos))
 
     def save(self, doc: WorldDoc, regions: dict[tuple[int, int], np.ndarray],
-             deleted_objects: list[tuple[int, int, int]] = (), start_pos=None, added_objects=()) -> int:
+             deleted_objects: list[tuple[int, int, int]] = (), start_pos=None, added_objects=(),
+             states=None) -> int:
         """Save into the mod project (worlds and prefabs from the game packs)."""
         if doc.path:
             raise StudioError('게임 저장본은 "다른 이름으로 저장"으로 새 파일에 저장하세요')
         self.st.need_project()
         with self.lock:
-            self._apply_edits(doc, regions, deleted_objects, start_pos, added_objects)
+            self._apply_edits(doc, regions, deleted_objects, start_pos, added_objects, states)
             data = doc.obj.to_bytes()
             self.st.write(doc.name, data)
             self.sessions[entry_key(doc.name)] = (self.mirror.signature(doc.name), doc)
         return len(data)
 
     def save_as(self, doc: WorldDoc, path: str, regions: dict[tuple[int, int], np.ndarray],
-                deleted_objects: list[tuple[int, int, int]] = (), start_pos=None, added_objects=()) -> int:
+                deleted_objects: list[tuple[int, int, int]] = (), start_pos=None, added_objects=(),
+                states=None) -> int:
         """Write the (edited) world to a new .bwr file.  The game's save folders are refused."""
         from . import savedworlds
         path = os.path.abspath(path)
@@ -255,7 +273,7 @@ class WorldService:
                 os.path.normcase(os.path.join(game, 'data')) + os.sep)):
             raise StudioError('게임 폴더의 저장본·팩 자리에는 저장하지 않습니다. 다른 폴더를 고르세요.')
         with self.lock:
-            self._apply_edits(doc, regions, deleted_objects, start_pos, added_objects)
+            self._apply_edits(doc, regions, deleted_objects, start_pos, added_objects, states)
             data = doc.obj.to_bytes()
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path + '.tmp', 'wb') as f:

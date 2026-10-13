@@ -15,12 +15,12 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 - 도구 목록: `python -m studio.agent tools`, 사용법: `python -m studio.agent guide world` (overview, world, content, gui, sound, models, mod, safety)
 - 에이전트용 안내는 `AGENTS.md`(Claude Code는 `CLAUDE.md`로 자동으로 읽음)와 MCP 서버의 instructions에 들어 있다.
 
-## 2. 무엇을 할 수 있나 (도구 108개)
+## 2. 무엇을 할 수 있나 (도구 109개)
 
 | 묶음 | 도구 | 내용 |
 |---|---|---|
 | core | `status` `project_new/open/info/revert/export_zip` `studio_view` `studio_show` `guide` | 게임 폴더·모드 프로젝트, 창이 지금 보여 주는 것, 창에 결과 띄우기 |
-| world | `world_open` `world_layer` `world_section` `world_heightmap` `world_ground` `world_render`(위·3D·전체) `world_fill`(꽉/속 빈/벽/테두리) `world_build`(ASCII 설계도) `world_shape`(구·돔·원기둥·원뿔·피라미드·선) `world_copy/paste`(회전, 가구 포함) `world_place(_many)` `world_delete_objects` `world_set_start` `world_undo/redo` `world_save` `world_save_prefab` `world_capture` `world_apply_to_game` `world_restore_backup` | 맵·프리팹 편집 전부. 그림과 ASCII로 확인하며 작업 |
+| world | `world_open` `world_layer` `world_section` `world_heightmap` `world_ground` `world_render`(위·3D·전체) `world_fill`(꽉/속 빈/벽/테두리) `world_build`(ASCII 설계도) `world_shape`(구·돔·원기둥·원뿔·피라미드·선) `world_copy/paste`(회전, 가구 포함) `world_place(_many)` `world_switch`(조명 켜기·끄기) `world_delete_objects` `world_set_start` `world_undo/redo` `world_save` `world_save_prefab` `world_capture` `world_apply_to_game` `world_restore_backup` | 맵·프리팹 편집 전부. 그림과 ASCII로 확인하며 작업 |
 | content | `bricks_list` `products_list` `items_search` `content_new_block/furniture/item/sound` `content_added` `block_tile*` `furniture_textures` | 새 블록·가구·아이템·사운드, 블록 아틀라스, 가구 텍스처 |
 | files / tables | `files_search` `text_read/write/edit` `file_import/export/revert` `image_view/adjust` `texture_make` `table_records/upsert/remove` `string_get/set` `pack_extract/verify/build` `packs_list` | 모든 리소스, XML 표 레코드 병합, 문자열, 팩 |
 | gui | `gui_list` `gui_tree` `gui_render` `gui_edit` `gui_textures` `gui_revert` | 화면 레이아웃: 노드 번호가 찍힌 그림을 보고 옮기기·크기·글자·색·그림·추가·삭제 |
@@ -60,6 +60,13 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 - **인게임 확인 (2026-10-14):** 에이전트가 이 도구만으로 내 월드(lj) 스폰 옆에 지은 거대한 영국식 성(해자·탑·성문·4층 본성·
   대연회장·막사, 가구 106개)을 "내 월드에 적용"으로 넣었고 게임에서 잘 보였다.
   **아직 확인하지 않은 것:** 맨 #60 바닥 위 y=1에 놓은 가구가 게임에서 제 높이로 보이는지.
+- 조명: 종류(event)가 "on"인 설치물(램프·촛대·가로등 …)은 저장된 오브젝트 상태 바이트의 **0x10 비트(IsUse)**가
+  켜져 있어야 게임에서 빛난다(빛은 모델 .nwmt의 `<light_list>`). 게임에 들어 있는 맵의 조명은 대부분 상태 16이다.
+  `world_place`·`world_place_many`는 조명을 **켠 채로** 놓고(`on=false`면 끈 채로), `world_objects`는 조명마다
+  `on`을 보여 주며, `world_switch(ids 또는 box, on=true/false)`로 이미 있는 조명을 켜고 끈다(다른 비트는 그대로).
+  3D 에디터에서 마우스로 놓은 조명도 저장할 때 켜진 채로 들어간다. 복사·붙여넣기는 켜짐/꺼짐을 그대로 옮긴다.
+- 벽에 거는 설치물(벽등 등)의 회전: rot 0 = 벽이 기준 칸의 +z 쪽, rot 1 = +x, rot 2 = -z, rot 3 = -x
+  (게임에 들어 있는 맵에서 확인).
 - 큰 월드(1024×1024)도 바로 열린다. 읽기는 필요한 영역만 풀고(최근 512영역만 기억), 그림은 512×512칸까지.
 
 ## 6. 개발·테스트
@@ -69,7 +76,7 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 | `studio/agent/` | `registry.py`(도구 등록·인자 검사), `tools_*.py`(묶음별 도구), `context.py`, `render.py`(그림), `mcp.py`(MCP 서버, 표준 라이브러리만), `cli.py`, `live.py`(창 연결), `guide.py` |
 | `studio/worldedit.py` | 화면 없는 월드 편집 세션 + 3D 에디터와 함께 쓰는 가구 규칙 |
 | `studio/ui/agentlink.py` | 창 쪽 연결: 변경 다시 읽기, 화면 열기 요청, 상태 알림 |
-| `tests/test_agent.py` | 가짜 게임 폴더에서 모든 묶음 + MCP 프로토콜 + CLI (167개 확인) |
+| `tests/test_agent.py` | 가짜 게임 폴더에서 모든 묶음 + MCP 프로토콜 + CLI (204개 확인) |
 | `tests/test_agent_live.py` | 실제 창 + 별도 에이전트 프로세스: 월드 다시 읽기(카메라 유지), studio_view/show, 프로젝트 따라가기 |
 
 ```bash

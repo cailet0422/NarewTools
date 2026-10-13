@@ -76,6 +76,8 @@ def _obj_row(s: EditSession, ob) -> dict:
     if kind == brick.OBJ_PRODUCT:
         pt = s.doc.products.get(t)
         row['name'] = pt.name if pt else ''
+        if brick.switchable(pt):
+            row['on'] = bool(s.state_of(key) & brick.STATE_ON)
         cells = s.doc.footprint(t, rot)
         row['footprint_box'] = [x + min(c[0] for c in cells), y + min(c[1] for c in cells), z + min(c[2] for c in cells),
                                 x + max(c[0] for c in cells), y + max(c[1] for c in cells), z + max(c[2] for c in cells)]
@@ -144,6 +146,10 @@ def summary(ctx, sid: str) -> dict:
                        'trees': sum(1 for o in objs if o[1] == brick.OBJ_TREE)},
            'dirty': s.dirty(), 'undo': [op['label'] for op in s.undo_stack[-10:]], 'redo': len(s.redo_stack),
            'save_goes_to': save_to}
+    lights = [bool(s.state_of(o[0]) & brick.STATE_ON) for o in objs
+              if o[1] == brick.OBJ_PRODUCT and brick.switchable(d.products.get(o[2]))]
+    if lights:
+        out['objects']['lights'] = {'on': sum(lights), 'off': len(lights) - sum(lights)}
     if d.is_world:
         sp = s.start_pos
         if sp:
@@ -421,8 +427,9 @@ def world_find(ctx, session, bricks, box, limit):
 
 
 @tool('world_objects', 'world',
-      'Furniture (products) and trees: id (for world_delete_objects), type, name, anchor position, rotation, '
-      'footprint box. Filter by area/box, kind, product id.',
+      'Furniture (products) and trees: id (for world_delete_objects / world_switch), type, name, anchor position, '
+      'rotation, footprint box, and on (true/false) for lamps and other switchable products. Filter by area/box, '
+      'kind, product id.',
       session=SESSION, box=BOX(default=None), kind=STR('Only this kind.', None, enum=('product', 'tree')),
       product=INT('Only this product id.', None), limit=INT('Max rows.', 200))
 def world_objects(ctx, session, box, kind, product, limit):
@@ -653,7 +660,7 @@ def world_copy(ctx, session, box, with_objects):
     if with_objects:
         for key, kind, t, x, y, z, rot in s.objects_in(*b):
             if kind == brick.OBJ_PRODUCT:
-                prods.append((t, x - b[0], y - b[1], z - b[2], rot))
+                prods.append((t, x - b[0], y - b[1], z - b[2], rot, s.state_of(key)))
     cid = ctx.new_clip(Clip(arr, prods, f'{s.doc.name} {list(b)}'))
     return {'clip': cid, 'size_xyz': ctx.clips[cid].size, 'products': len(prods),
             'non_air': int(np.count_nonzero(arr))}
@@ -661,7 +668,8 @@ def world_copy(ctx, session, box, with_objects):
 
 @tool('world_paste', 'world',
       'Paste a clipboard (world_copy) or a prefab .iaf with its low corner at "at". rotate turns it about y; '
-      'skip_air leaves cells where the source is air unchanged. Copied furniture is placed again (failures listed).',
+      'skip_air leaves cells where the source is air unchanged. Copied furniture is placed again, lamps on/off as '
+      'copied (failures listed).',
       session=SESSION, at=POINT('Low corner [x, y, z] of the pasted block.'),
       clip=STR('Clipboard id from world_copy.', None), prefab=STR('Or a prefab entry (.iaf).', None),
       rotate=ROT, skip_air=BOOL('Do not copy air.', True), with_objects=BOOL('Place copied furniture.', True),
@@ -688,11 +696,11 @@ def world_paste(ctx, session, at, clip, prefab, rotate, skip_air, with_objects, 
     def run():
         s.write_box(ox, oy, oz, rarr, mask, only_air=only_air, keep_collision=keep_collision)
         placed, failed = [], []
-        for t, dx, dy, dz, rot in prods:
+        for t, dx, dy, dz, rot, state in prods:
             nx, nz = rotate_point(dx, dz, w, dep, rotate)
             pos = (ox + nx, oy + dy, oz + nz)
             try:
-                key = s.place_product(t, *pos, (rot + rotate) & 3)
+                key = s.place_product(t, *pos, (rot + rotate) & 3, state)
                 placed.append(object_id(key))
             except StudioError as ex:
                 failed.append({'product': t, 'pos': list(pos), 'why': str(ex)})
@@ -776,7 +784,7 @@ def local_height(s: EditSession, x: int, z: int, support: int, radius: int = 48)
     return None
 
 
-def _place_one(s, product, x, z, y, rot, dry_run):
+def _place_one(s, product, x, z, y, rot, dry_run, on=True):
     other = []
     defaulted = y is None
     if y is None:
@@ -788,6 +796,8 @@ def _place_one(s, product, x, z, y, rot, dry_run):
     pt = s.doc.products.get(product)
     base = {'product': product, 'name': pt.name if pt else None, 'pos': [x, y, z], 'rot': rot & 3,
             'footprint_cells': [list(c) for c in cells]}
+    if brick.switchable(pt):
+        base['on'] = bool(on)
     notes = []
     if other:
         notes.append(f'y={y} is the highest floor in this column (e.g. a roof); lower floors: {other} - '
@@ -803,31 +813,37 @@ def _place_one(s, product, x, z, y, rot, dry_run):
         base['note'] = ' | '.join(notes)
     if dry_run or not ok:
         return {**base, 'ok': ok, 'why': why or None}
-    key = s.place_product(product, x, y, z, rot)
+    key = s.place_product(product, x, y, z, rot, brick.placed_state(pt, on))
     return {**base, 'ok': True, 'id': object_id(key)}
+
+
+ON = BOOL('Lamps and other switchable products (kind "on"): place it switched on (it shines in game). '
+          'Ignored for other furniture.', True)
 
 
 @tool('world_place', 'world',
       'Place a furniture product (worlds only): the object + its collision cells, exactly like the editor. '
       'y defaults to the highest floor of the column (inside a roofed building pass y = floor + 1; the result '
-      'notes lower floors). Every footprint cell must be air. '
+      'notes lower floors). Every footprint cell must be air. Lamps are placed switched on (on=false: off). '
+      'Wall lamps hang on the wall at +z for rot 0, +x rot 1, -z rot 2, -x rot 3. '
       'dry_run=true only checks. Find ids/sizes with products_list.',
       session=SESSION, product=INT('Product id.'), x=INT('Anchor x.'), z=INT('Anchor z.'),
-      y=INT('Anchor y (default: on the ground).', None), rot=ROT, dry_run=BOOL('Only check.', False))
-def world_place(ctx, session, product, x, z, y, rot, dry_run):
+      y=INT('Anchor y (default: on the ground).', None), rot=ROT, on=ON, dry_run=BOOL('Only check.', False))
+def world_place(ctx, session, product, x, z, y, rot, on, dry_run):
     s = _sess(ctx, session)
     _refresh_products(ctx, s, product)
     if dry_run:
-        return _place_one(s, product, x, z, y, rot, True)
+        return _place_one(s, product, x, z, y, rot, True, on)
     out = {}
-    r = _edit(s, f'place #{product}', lambda: out.update(_place_one(s, product, x, z, y, rot, False)))
+    r = _edit(s, f'place #{product}', lambda: out.update(_place_one(s, product, x, z, y, rot, False, on)))
     if not out.get('ok'):
         raise StudioError(f"놓을 수 없습니다: {out.get('why')} (칸 {out.get('footprint_cells')})")
     return {**out, 'undo_steps': r['undo_steps']}
 
 
 @tool('world_place_many', 'world',
-      'Place several products in one undo step: items = [{"product": id, "x": .., "z": .., "y"?: .., "rot"?: ..}]. '
+      'Place several products in one undo step: items = [{"product": id, "x": .., "z": .., "y"?: .., "rot"?: .., '
+      '"on"?: true}] ("on" = lamp switched on, default true). '
       'Blocked ones are skipped and reported (stop_on_error=true aborts all instead).',
       session=SESSION, items=ARR('Placements.', {'type': 'object'}),
       stop_on_error=BOOL('Abort everything on the first failure.', False))
@@ -839,8 +855,11 @@ def world_place_many(ctx, session, items, stop_on_error):
         for it in items:
             try:
                 _refresh_products(ctx, s, int(it['product']))
+                on = it.get('on', True)
+                if not isinstance(on, bool):
+                    raise TypeError('"on" must be true or false')
                 r = _place_one(s, int(it['product']), int(it['x']), int(it['z']),
-                               None if it.get('y') is None else int(it['y']), int(it.get('rot', 0)), False)
+                               None if it.get('y') is None else int(it['y']), int(it.get('rot', 0)), False, on)
             except (KeyError, ValueError, TypeError) as ex:
                 r = {'ok': False, 'product': it.get('product'), 'why': f'bad item {it}: {ex}'}
             except StudioError as ex:
@@ -852,7 +871,8 @@ def world_place_many(ctx, session, items, stop_on_error):
                 failed.append(r)
                 if stop_on_error:
                     raise StudioError(f"놓을 수 없습니다: {r}")
-        return {'placed': [{'id': r['id'], 'product': r['product'], 'pos': r['pos']} for r in done],
+        return {'placed': [{'id': r['id'], 'product': r['product'], 'pos': r['pos'],
+                            **({'on': r['on']} if 'on' in r else {})} for r in done],
                 'failed': [{'product': r.get('product'), 'pos': r.get('pos'), 'why': r.get('why')} for r in failed]}
     return _edit(s, f'place {len(items)}', run)
 
@@ -883,6 +903,45 @@ def world_delete_objects(ctx, session, ids, box, kind, product):
             gone.append({'id': object_id(k), 'type': ob[2], 'pos': list(ob[3:6])})
         return {'deleted_objects': gone}
     return _edit(s, f'delete {len(keys)} objects', run)
+
+
+@tool('world_switch', 'world',
+      'Turn lamps (and other switchable products, kind "on") on or off: by id (from world_objects) or every one in '
+      'a box (optionally only one product id). A lamp only shines in game when it is on (object state bit 0x10). '
+      'Other furniture is skipped. One undo step.',
+      session=SESSION, ids=ARR('Object ids, e.g. ["o:32:31:0", "n:3"].', {'type': 'string'}, None),
+      box=BOX(default=None), product=INT('With box: only this product id.', None),
+      on=BOOL('true = on, false = off.', True))
+def world_switch(ctx, session, ids, box, product, on):
+    s = _sess(ctx, session)
+    keys = [parse_object_id(i) for i in ids or []]
+    if box:                                      # in a box only the switchable ones (ids report the others)
+        keys += [ob[0] for ob in s.objects_in(*_box(s, box)) if ob[1] == brick.OBJ_PRODUCT
+                 and (product is None or ob[2] == product) and brick.switchable(s.doc.products.get(ob[2]))]
+    if not ids and not box:
+        raise StudioError('켜거나 끌 오브젝트를 ids 또는 box로 주세요')
+    obs = []
+    for k in dict.fromkeys(keys):
+        ob = s.find_object(k)
+        if ob is None:
+            raise StudioError(f'없는 오브젝트입니다: {object_id(k)}')
+        obs.append(ob)
+    lamps = [ob for ob in obs if ob[1] == brick.OBJ_PRODUCT and brick.switchable(s.doc.products.get(ob[2]))]
+    skipped = [{'id': object_id(ob[0]), 'type': ob[2], 'why': 'not switchable (kind is not "on")'}
+               for ob in obs if ob not in lamps]
+    if not lamps:
+        raise StudioError('켜고 끌 수 있는 설치물(조명 등, 종류 "on")이 없습니다 (world_objects로 확인)')
+
+    def run():
+        switched, already = [], 0
+        for ob in lamps:
+            old = s.state_of(ob[0])
+            if s.set_state(ob[0], old | brick.STATE_ON if on else old & ~brick.STATE_ON):
+                switched.append({'id': object_id(ob[0]), 'type': ob[2], 'pos': list(ob[3:6])})
+            else:
+                already += 1
+        return {'on': on, 'switched': switched, 'already': already, 'skipped': skipped}
+    return _edit(s, f'switch {len(lamps)} {"on" if on else "off"}', run)
 
 
 @tool('world_set_start', 'world', 'Move the spawn point (worlds). y defaults to standing on the ground there.',

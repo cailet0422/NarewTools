@@ -90,7 +90,8 @@ def _mod_ids(ctx, table, tag) -> set[int]:
 
 
 @tool('products_list', 'content',
-      'Furniture / placeable object types (product.xml): id, name, kind (sleep, sit, light, container ...), '
+      'Furniture / placeable object types (product.xml): id, name, kind ("on" = lamps and other switchable lights, '
+      'sleep, sitdown, storage ...), '
       'footprint size in bricks (x, y, z), and why it cannot be placed (null = placeable with world_place).',
       query=STR('Text in the name/kind or an id.', None),
       placeable_only=BOOL('Only types world_place can place.', False), limit=INT('Max rows.', 100))

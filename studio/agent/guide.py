@@ -60,6 +60,7 @@ Edit (every call = one undo step; world_undo/world_redo)
 - world_copy(box) -> clip; world_paste(at, clip|prefab, rotate); world_save_prefab(name, clip|session+box)
 - furniture: products_list(placeable_only=true) -> world_place(product, x, z[, y, rot]) / world_place_many;
   y defaults to standing on the ground; the whole footprint must be air; world_delete_objects(ids|box)
+- lights: world_switch(ids|box, on=true|false); world_objects shows on=true/false for every lamp
 - world_set_start(x, z): spawn point
 
 Save
@@ -76,6 +77,14 @@ Heights of furniture (measured, not an engine rule):
   yourself (e.g. the gold pavilion floor at y=1) takes furniture right on it (y=2) - confirmed visible in game.
 - world_place without y uses "right on the brick" and adds a note when nearby game-placed objects do otherwise.
 Always measure with world_ground / world_heightmap / world_objects instead of assuming.
+
+Lights (lamps, candles, street lights: products of kind "on" in products_list):
+- a lamp only shines in game when its object state has bit 0x10 (IsUse) set; the light itself comes from the
+  model's <light_list>. Shipped maps store nearly all their lamps on (state 16).
+- world_place / world_place_many place them ON (on=false for off); world_paste keeps the copied on/off;
+  world_switch turns existing ones on/off (only bit 0x10 changes).
+- wall-mounted products (wall lamps, sconces): rot 0 hangs on a wall at +z of the anchor cell, rot 1 at +x,
+  rot 2 at -z, rot 3 at -x (verified on shipped maps). Put the anchor in the air cell in front of the wall.
 
 Recipe: small house on flat ground at (x0, z0)
 1. g = world_ground(x0, z0) -> base y = g.place_at_y

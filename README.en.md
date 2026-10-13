@@ -46,7 +46,7 @@ and worlds (maps). A mod manager puts them into the game and can always restore 
 |---|---|
 | **NarewStudio.exe** | Makes mods. It only **reads** the game files; changed files and added entries are saved into a mod project |
 | **NarewModManager.exe** | Enables/disables and orders mods, applies them to the game, restores the originals |
-| **NarewAgent.exe** | Bridge for AI agents (console). Exposes NarewStudio as 108 tools over MCP and a command line |
+| **NarewAgent.exe** | Bridge for AI agents (console). Exposes NarewStudio as 109 tools over MCP and a command line |
 | `narew` (Python) | Command line tools: unpack/build packs, models ↔ glTF, brick (voxel) file conversion (run from source) |
 
 ## Features
@@ -290,7 +290,7 @@ A `merge\` patch (UTF-8). An entry with the same key is replaced whole; otherwis
 
 ## Connecting AI agents
 
-Every NarewStudio feature is available as **108 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
+Every NarewStudio feature is available as **109 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
 Agents check their work with ASCII maps and pictures (top-down map, 3D, GUI, model, waveform).
 
 | 3D picture (`world_render` view=iso) | Floor plan from above (view=top) |
@@ -522,7 +522,7 @@ AGENTS.md    instructions for AI agents; .mcp.json registers the MCP server for 
 | [06 Program manual](docs/06-studio-modmanager.md) | NarewStudio and NarewModManager in detail |
 | [07 New content](docs/07-new-content.md) | Engine limits, table merge rules |
 | [08 GUI layout](docs/08-gui-layout.md) | Editing `Gui\*.xml` |
-| [09 AI agents](docs/09-ai-agents.md) | 108 tools, connection, safety |
+| [09 AI agents](docs/09-ai-agents.md) | 109 tools, connection, safety |
 
 The `re/` analysis output mentioned in the docs (game binary dumps, decompiler output) is not included in this repository.
 

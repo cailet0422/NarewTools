@@ -60,6 +60,7 @@ MAX_SPECIALS = 256                # IBrickServerRegion::LoadFromFile skips longe
 
 OBJ_TREE = 1
 OBJ_PRODUCT = 2
+STATE_ON = 0x10                   # object state bit IsUse: a switchable ("on") product is on - a lamp shines
 
 _HDR = struct.Struct('<5i')
 _OBJ = struct.Struct('<BiHHHBBIiq')        # IWorldObject::SaveBinary, 30 bytes
@@ -239,6 +240,7 @@ PRODUCT_EVENTS = (
     'vehicle', 'boardgame', 'rank', 'decor_obj_mask', 'tracking_target', 'market', 'trap',
     'post')
 _EVENT_ID = {n: i for i, n in enumerate(PRODUCT_EVENTS)}
+EVENT_ON = _EVENT_ID['on']        # switchable products: lamps (light in the .nwmt <light_list>), candles ...
 
 # IProductType::SeekExtraBin (0x18018ca80) groups
 _SIZED = {5, 0x18, 0x19, 0x1e, 0x27, 0x2a}                        # u16 n + n bytes
@@ -345,8 +347,22 @@ def new_product_extra(pt: ProductType) -> bytes:
     return (bytes(12) if pt.option & OPT_COLOR else b'') + b'\x00\x00'
 
 
-def new_product(pt: ProductType, x: int, y: int, z: int, rot: int = 0, owner: int = 0) -> 'WorldObject':
-    return WorldObject(OBJ_PRODUCT, pt.id, x, y, z, rot & 3, 0, 0, pt.hp, owner, new_product_extra(pt))
+def switchable(pt: ProductType | None) -> bool:
+    """A product the player turns on and off (PRODUCT_TYPE 1 "on"); its light only shines with STATE_ON."""
+    return pt is not None and pt.event == EVENT_ON
+
+
+def placed_state(pt: ProductType | None, on: bool = True) -> int:
+    """State byte of a freshly placed product: STATE_ON for a switchable one that should be on (as the
+    shipped maps store nearly all their lamps), else 0."""
+    return STATE_ON if on and switchable(pt) else 0
+
+
+def new_product(pt: ProductType, x: int, y: int, z: int, rot: int = 0, owner: int = 0,
+                state: int = 0) -> 'WorldObject':
+    if not 0 <= state <= 255:
+        raise BrickError(f'object state {state} is not a byte')
+    return WorldObject(OBJ_PRODUCT, pt.id, x, y, z, rot & 3, state, 0, pt.hp, owner, new_product_extra(pt))
 
 
 class _Cursor:
