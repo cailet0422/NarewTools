@@ -8,6 +8,9 @@
 
 **[⬇ 下載最新版本（Releases）](https://github.com/cailet0422/NarewTools/releases/latest)**
 
+![在 NarewStudio 世界編輯器中開啟自己的世界](docs/images/studio-world.png)
+<sub>在世界編輯器中開啟的單人世界。這座城堡是 AI 代理只用 NarewStudio 的工具蓋出來的。</sub>
+
 > [!IMPORTANT]
 > 這是非官方的玩家自製工具，與遊戲開發商、發行商無關。本儲存庫與發行檔中**不包含任何遊戲檔案**。
 > 必須有正式安裝的遊戲才能使用。遊戲具有連線功能，請在單人模式（自己的世界）中測試，並自行確認遊戲的使用條款。
@@ -66,6 +69,16 @@
 **NarewModManager**：安裝模組（拖入 zip）、啟用/停用、優先順序、衝突顯示、XML 表格**逐項合併**（多個模組在同一張表格新增項目也都會生效）、套用到遊戲 / 還原原版、偵測 Steam 更新。
 
 **AI 代理**：可以直接處理「在出生點旁邊蓋一間小屋，放一張床」、「把背包的關閉按鈕移到左下角」這類要求。代理會用 ASCII 地圖與圖片確認結果，開著的 NarewStudio 視窗會立即重新讀取變更。
+
+### 螢幕截圖
+
+| 模型檢視器 —— 組合角色部件、播放動畫 | GUI 編輯 —— 以實際遊戲圖片編輯畫面配置 |
+|---|---|
+| ![模型檢視器](docs/images/studio-models.png) | ![GUI 編輯](docs/images/studio-gui.png) |
+| **音效編輯 —— 波形與區間編輯** | **新增內容 —— 新家具** |
+| ![音效編輯](docs/images/studio-sound.png) | ![新家具](docs/images/studio-create.png) |
+| **家具貼圖 —— 各材質貼圖與 3D 預覽** | **方塊貼圖 —— 方塊圖集** |
+| ![家具貼圖](docs/images/studio-furniture.png) | ![方塊貼圖](docs/images/studio-blocks.png) |
 
 ## 系統需求
 
@@ -231,6 +244,8 @@ NarewStudio 每次開啟模組時都會重新計算可用編號。遊戲更新�
 3. 勾選以啟用，拖曳或用 ▲▼ 調整順序（**越上面優先順序越高**）。右側可查看模組的檔案、表格合併，以及被其他模組蓋掉的檔案。
 4. **在遊戲關閉的狀態下**點選 **게임에 적용**（套用到遊戲）。要復原請點 **원본 복구**（還原原版）。
 
+![NarewModManager —— 已安裝的模組與優先順序](docs/images/modmanager.png)
+
 套用方式：
 
 | 方式 | 說明 |
@@ -277,6 +292,12 @@ my-mod/
 
 NarewStudio 的全部功能以 **108 個工具**提供（地圖·建築·家具擺放，新方塊·家具·物品·音效，任意遊戲檔案，XML 表格，GUI，聲音，模型，封包，模組管理器）。
 代理會透過 ASCII 地圖與圖片（俯視地圖、3D、GUI、模型、波形）確認結果。
+
+| 3D 圖（`world_render` view=iso） | 俯視平面圖（view=top） |
+|---|---|
+| ![代理看到的 3D 圖](docs/images/agent-castle-3d.png) | ![代理看到的平面圖](docs/images/agent-castle-top.png) |
+
+<sub>代理蓋出最上方截圖中的城堡時，用來確認結果的圖片。橘色方框 = 家具。</sub>
 
 ### Claude Code
 

@@ -8,6 +8,9 @@ and worlds (maps). A mod manager puts them into the game and can always restore 
 
 **[⬇ Download the latest version (Releases)](https://github.com/cailet0422/NarewTools/releases/latest)**
 
+![NarewStudio world editor with the user's own world open](docs/images/studio-world.png)
+<sub>A single-player world open in the world editor. The castle was built by an AI agent using only the NarewStudio tools.</sub>
+
 > [!IMPORTANT]
 > This is an unofficial fan tool. It is not affiliated with the game's developer or publisher, and neither this repository nor the releases **contain any game files**.
 > You need a legitimately installed copy of the game. The game has online features, so test mods in single player (your own world) and check the game's terms of service yourself.
@@ -66,6 +69,16 @@ and worlds (maps). A mod manager puts them into the game and can always restore 
 **NarewModManager**: install mods (drag & drop a zip), enable/disable, priority, conflict display, **per-record merging** of XML tables (several mods can add entries to the same table), apply to the game / restore originals, detects Steam updates.
 
 **AI agents**: an agent can directly handle requests like "build a small house next to the spawn and put a bed in it" or "move the inventory close button to the bottom left". It checks its work with ASCII maps and pictures, and an open NarewStudio window reloads the changes immediately.
+
+### Screenshots
+
+| Model viewer — combine character parts, play animations | GUI editor — screen layouts drawn with the real game images |
+|---|---|
+| ![Model viewer](docs/images/studio-models.png) | ![GUI editor](docs/images/studio-gui.png) |
+| **Sound editor — waveform and range editing** | **Add new content — new furniture** |
+| ![Sound editor](docs/images/studio-sound.png) | ![New furniture](docs/images/studio-create.png) |
+| **Furniture textures — per-material textures, 3D preview** | **Block textures — the block atlas** |
+| ![Furniture textures](docs/images/studio-furniture.png) | ![Block textures](docs/images/studio-blocks.png) |
 
 ## Requirements
 
@@ -231,6 +244,8 @@ Edits game maps (`.bwr`) and building prefabs (`.iaf`) in 3D.
 3. Tick to enable; drag or use ▲▼ to order them (**top wins**). The right side shows the mod's files and table merges and files hidden by other mods.
 4. **With the game closed**, click **게임에 적용** (Apply to game). To undo, **원본 복구** (Restore originals).
 
+![NarewModManager — installed mods and their priority](docs/images/modmanager.png)
+
 Apply modes:
 
 | Mode | What happens |
@@ -277,6 +292,12 @@ A `merge\` patch (UTF-8). An entry with the same key is replaced whole; otherwis
 
 Every NarewStudio feature is available as **108 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
 Agents check their work with ASCII maps and pictures (top-down map, 3D, GUI, model, waveform).
+
+| 3D picture (`world_render` view=iso) | Floor plan from above (view=top) |
+|---|---|
+| ![3D picture the agent sees](docs/images/agent-castle-3d.png) | ![Floor plan the agent sees](docs/images/agent-castle-top.png) |
+
+<sub>What the agent looked at while building the castle shown at the top. Orange boxes = furniture.</sub>
 
 ### Claude Code
 

@@ -8,6 +8,9 @@
 
 **[⬇ 최신 버전 내려받기 (Releases)](https://github.com/cailet0422/NarewTools/releases/latest)**
 
+![NarewStudio 월드 에디터에서 내 월드를 연 모습](docs/images/studio-world.png)
+<sub>월드 에디터에서 연 내 월드. 이 성은 AI 에이전트가 NarewStudio 도구만으로 지었습니다.</sub>
+
 > [!IMPORTANT]
 > 비공식 팬 도구입니다. 게임 개발사·배급사와 관계가 없으며, 이 저장소와 릴리즈에는 **게임 파일이 들어 있지 않습니다**.
 > 정식으로 설치한 게임이 있어야 쓸 수 있습니다. 온라인 기능이 있는 게임이므로 테스트는 싱글 플레이(내 월드)에서 하고, 게임 이용약관은 각자 확인하세요.
@@ -62,6 +65,16 @@
 **NarewModManager**: 모드 설치(zip 끌어다 놓기), 켜기/끄기, 우선순위, 충돌 표시, XML 표 **항목 단위 병합**(여러 모드가 같은 표에 항목을 더해도 모두 들어감), 게임에 적용 / 원본 복구, Steam 업데이트 감지.
 
 **AI 에이전트**: "스폰 옆에 작은 집 지어 주고 침대 넣어 줘", "인벤토리 닫기 버튼을 왼쪽 아래로 옮겨 줘" 같은 요청을 에이전트가 직접 처리합니다. ASCII 지도와 그림으로 결과를 확인하고, 열려 있는 NarewStudio 창이 바뀐 내용을 바로 다시 읽습니다.
+
+### 스크린샷
+
+| 모델 뷰어 — 캐릭터 부위 조합·애니메이션 | GUI 편집 — 실제 게임 그림으로 화면 배치 |
+|---|---|
+| ![모델 뷰어](docs/images/studio-models.png) | ![GUI 편집](docs/images/studio-gui.png) |
+| **사운드 편집 — 파형·구간 편집** | **새 리소스 추가 — 새 가구** |
+| ![사운드 편집](docs/images/studio-sound.png) | ![새 가구 추가](docs/images/studio-create.png) |
+| **가구 텍스처 — 재질별 텍스처·3D 미리보기** | **블록 텍스처 — 블록 아틀라스** |
+| ![가구 텍스처](docs/images/studio-furniture.png) | ![블록 텍스처](docs/images/studio-blocks.png) |
 
 ## 요구 사항
 
@@ -227,6 +240,8 @@ NarewStudio는 열 때마다 빈 번호를 다시 계산합니다. 게임 업데
 3. 체크박스로 켜고, 끌거나 ▲▼로 순서를 정합니다(**위쪽이 우선**). 오른쪽에서 모드의 파일·표 병합과 다른 모드에 가려지는 파일을 볼 수 있습니다.
 4. **게임을 끈 상태에서** **게임에 적용**. 되돌리려면 **원본 복구**.
 
+![NarewModManager — 설치한 모드 목록과 우선순위](docs/images/modmanager.png)
+
 적용 방식:
 
 | 방식 | 동작 |
@@ -273,6 +288,12 @@ NarewStudio는 열 때마다 빈 번호를 다시 계산합니다. 게임 업데
 
 NarewStudio의 모든 기능이 **도구 108개**(맵·건물·가구 배치, 새 블록·가구·아이템·사운드, 모든 게임 파일, XML 표, GUI, 사운드, 모델, 팩, 모드 매니저)로 제공됩니다.
 에이전트는 ASCII 지도와 그림(위에서 본 지도·3D·GUI·모델·파형)으로 결과를 확인합니다.
+
+| 3D 그림 (`world_render` view=iso) | 위에서 본 평면도 (view=top) |
+|---|---|
+| ![에이전트가 보는 3D 그림](docs/images/agent-castle-3d.png) | ![에이전트가 보는 평면도](docs/images/agent-castle-top.png) |
+
+<sub>에이전트가 맨 위 화면의 성을 지으면서 결과를 확인할 때 보는 그림입니다. 주황색 상자 = 가구.</sub>
 
 ### Claude Code
 
