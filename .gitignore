@@ -1,0 +1,17 @@
+# build output (tools/build_exe.py) — the exes are published as GitHub Releases
+build/
+dist/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# local reverse-engineering artifacts (game binary dumps, decompiler output) — not published
+re/
+
+# logs / scratch
+*.log
+*.tmp

@@ -1,0 +1,6 @@
+# NarewStudio / NarewModManager / NarewAgent (the `narew` command line tools need none of these)
+PySide6>=6.8
+moderngl>=5.12
+numpy
+Pillow
+soundfile
