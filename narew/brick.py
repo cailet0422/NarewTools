@@ -354,7 +354,7 @@ def switchable(pt: ProductType | None) -> bool:
 
 def placed_state(pt: ProductType | None, on: bool = True) -> int:
     """State byte of a freshly placed product: STATE_ON for a switchable one that should be on (as the
-    shipped maps store nearly all their lamps), else 0."""
+    shipped maps store most of their lamps), else 0."""
     return STATE_ON if on and switchable(pt) else 0
 
 

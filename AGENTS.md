@@ -69,7 +69,7 @@ in the user's flat world (ground #60 at y=0) the game's own objects stand at y=2
 existing objects differ — match them unless the user says otherwise.
 
 Lights: products of kind `"on"` (lamps, candles, street lights) only shine in game when the object state has
-bit `0x10` (IsUse) set — shipped maps store nearly all lamps with state 16. `world_place` / `world_place_many`
+bit `0x10` (IsUse) set — shipped maps store most lamps with state 16 (191 of 297). `world_place` / `world_place_many`
 place them on (`on=false` for off), `world_paste` keeps the copied state, `world_switch` turns existing ones
 on/off. Wall-mounted products: rot 0 = wall at +z of the anchor cell, rot 1 = +x, rot 2 = -z, rot 3 = -x
 (verified on shipped maps).

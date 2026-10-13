@@ -80,7 +80,7 @@ Always measure with world_ground / world_heightmap / world_objects instead of as
 
 Lights (lamps, candles, street lights: products of kind "on" in products_list):
 - a lamp only shines in game when its object state has bit 0x10 (IsUse) set; the light itself comes from the
-  model's <light_list>. Shipped maps store nearly all their lamps on (state 16).
+  model's <light_list>. Shipped maps store most lamps on (state 16: 191 of 297; lobby maps nearly all).
 - world_place / world_place_many place them ON (on=false for off); world_paste keeps the copied on/off;
   world_switch turns existing ones on/off (only bit 0x10 changes).
 - wall-mounted products (wall lamps, sconces): rot 0 hangs on a wall at +z of the anchor cell, rot 1 at +x,
