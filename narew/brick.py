@@ -43,6 +43,7 @@ import math
 import os
 import re
 import struct
+import sys
 import zlib
 from dataclasses import dataclass, field
 from typing import Iterator
@@ -636,6 +637,93 @@ class World:
         for r in self.regions:
             for o in r.objects or ():
                 yield r, o
+
+
+# --------------------------------------------------------------------------- world size / new worlds
+
+# The server sizes a world from its .bwr header (IBrickServer::LoadRegions -> SetWorldSize 0x1800447d0: region,
+# habitat and land arrays are allocated from it); only the game's own "new world" is fixed at 1024 x 1024
+# (IBrickWorldInfor ctor 0x18009e0e0).  Limits seen in the engine for bigger worlds:
+#   * IBrickServerRegion::Create (0x1800929c0) allocates every region in full: ~69 KB of RAM each;
+#   * IBrickWorldInfor::GetPositionToID (0x18009e130) packs x + W*z + W*D*y into an int;
+#   * ILandOwnershipMgr::Create (0x180114e00) keeps a land's index (32 x 32 x 32 bricks) in an i16;
+#   * object x/z are u16, the region offset table is u32 (the file must stay under 4 GiB).
+# In game (2026-10-14) 2048 and 4096 load, play and are saved back at their size; new worlds stop there.
+WORLD_SIDE_MAX = 4096
+REGION_RAM = 0x10000 + 0x100 + 0x400 + 0x3fc + 0x1b + 0x120
+
+
+def world_limits(width: int, depth: int) -> dict:
+    """What the engine's fixed-size counters and memory make of a width x depth world."""
+    cells = width * depth
+    lands = (width // 32) * (REGION_HEIGHT // 32) * (depth // 32)
+    pos_ok_below = min(REGION_HEIGHT, -(-(2 ** 31) // cells))      # first y whose position id overflows
+    return {'regions': (width // SIDE) * (depth // SIDE),
+            'server_ram_bytes': (width // SIDE) * (depth // SIDE) * REGION_RAM,
+            'position_id_ok_below_y': pos_ok_below,
+            'land_count': lands, 'land_ids_ok': lands <= 32768}
+
+
+def bwr_header(d: bytes) -> tuple[int, int]:
+    """(width, depth) of a .bwr after checking its header and region offset table (regions are not decoded)."""
+    if len(d) < 16:
+        raise BrickError('file too short for a .bwr')
+    magic, width, depth, count = struct.unpack_from('<I3i', d, 0)
+    if magic != BWR_MAGIC:
+        raise BrickError(f'bad .bwr magic {magic:#x}')
+    if width <= 0 or depth <= 0 or width % SIDE or depth % SIDE or count != (width // SIDE) * (depth // SIDE):
+        raise BrickError(f'inconsistent .bwr header {width}x{depth}, {count} regions')
+    table_at = len(d) - 4 * count
+    if table_at < 16:
+        raise BrickError('region offset table missing')
+    offs = memoryview(d)[table_at:].cast('I') if sys.byteorder == 'little' \
+        else struct.unpack_from(f'<{count}I', d, table_at)
+    if offs[0] != 16:
+        raise BrickError(f'first region at {offs[0]}, expected 16')
+    prev = 16
+    for o in offs[1:]:
+        if o < prev + 32:                       # q version, i size, i specials, i objects, 3i trailer
+            raise BrickError('region offset table is not increasing')
+        prev = o
+    if prev + 32 > table_at:
+        raise BrickError('last region runs into the offset table')
+    return width, depth
+
+
+def flat_region(ground: int = 60, layers: int = 1) -> bytes:
+    """One region record: `layers` layers of `ground` from y=0, air above, no specials or objects."""
+    n = SIDE * SIDE * layers
+    comp = zlib.compress(bytes([ground]) * n + bytes(REGION_HEIGHT * SIDE * SIDE - n), BWR_LEVEL)
+    return struct.pack('<qi', 1, len(comp)) + comp + struct.pack('<2i3i', 0, 0, 0, 0, 0)
+
+
+def write_flat_world(path: str, width: int, depth: int, tail: WorldTail, ground: int = 60,
+                     layers: int = 1) -> int:
+    """Write a flat world straight to `path` (big worlds never exist as Region objects).  Returns the size."""
+    if not (SIDE <= width <= WORLD_SIDE_MAX and SIDE <= depth <= WORLD_SIDE_MAX) or width % SIDE or depth % SIDE:
+        raise BrickError(f'world size must be {SIDE}..{WORLD_SIDE_MAX} in steps of {SIDE}, got {width}x{depth}')
+    if not 1 <= ground <= 254 or not 1 <= layers < REGION_HEIGHT:
+        raise BrickError('ground brick must be 1..254 and layers 1..255')
+    rec = flat_region(ground, layers)
+    count = (width // SIDE) * (depth // SIDE)
+    if 16 + count * len(rec) >= 2 ** 32:
+        raise BrickError('the world would pass 4 GiB (region offsets are 32-bit)')
+    tail_raw = tail.to_bytes()
+    tmp = path + '.tmp'
+    with open(tmp, 'wb') as f:
+        f.write(struct.pack('<I3i', BWR_MAGIC, width, depth, count))
+        block = 4096
+        chunk = rec * block
+        for start in range(0, count, block):
+            k = min(block, count - start)
+            f.write(chunk if k == block else rec * k)
+        f.write(tail_raw)
+        for start in range(0, count, 65536):
+            stop = min(count, start + 65536)
+            f.write(struct.pack(f'<{stop - start}I', *range(16 + start * len(rec), 16 + stop * len(rec), len(rec))))
+        size = f.tell()
+    os.replace(tmp, path)
+    return size
 
 
 def scan_objects_raw(raw: bytes, products: ProductTable | None) -> tuple[int, tuple | None]:

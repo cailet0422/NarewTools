@@ -15,12 +15,12 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 - 도구 목록: `python -m studio.agent tools`, 사용법: `python -m studio.agent guide world` (overview, world, content, gui, sound, models, mod, safety)
 - 에이전트용 안내는 `AGENTS.md`(Claude Code는 `CLAUDE.md`로 자동으로 읽음)와 MCP 서버의 instructions에 들어 있다.
 
-## 2. 무엇을 할 수 있나 (도구 111개)
+## 2. 무엇을 할 수 있나 (도구 113개)
 
 | 묶음 | 도구 | 내용 |
 |---|---|---|
 | core | `status` `project_new/open/info/revert/export_zip` `studio_view` `studio_show` `guide` | 게임 폴더·모드 프로젝트, 창이 지금 보여 주는 것, 창에 결과 띄우기 |
-| world | `world_open` `world_layer` `world_section` `world_heightmap` `world_ground` `world_render`(위·3D·전체) `world_fill`(꽉/속 빈/벽/테두리) `world_build`(ASCII 설계도) `world_shape`(구·돔·원기둥·원뿔·피라미드·선) `world_copy/paste`(회전, 가구 포함) `world_place(_many)` `world_switch`(조명 켜기·끄기) `world_rotate`(놓인 가구 돌리기) `world_image`(그림 → 블록 도트) `world_delete_objects` `world_set_start` `world_undo/redo` `world_save` `world_save_prefab` `world_capture` `world_apply_to_game` `world_restore_backup` | 맵·프리팹 편집 전부. 그림과 ASCII로 확인하며 작업 |
+| world | `world_open` `world_layer` `world_section` `world_heightmap` `world_ground` `world_render`(위·3D·전체) `world_fill`(꽉/속 빈/벽/테두리) `world_build`(ASCII 설계도) `world_shape`(구·돔·원기둥·원뿔·피라미드·선) `world_copy/paste`(회전, 가구 포함) `world_place(_many)` `world_switch`(조명 켜기·끄기) `world_rotate`(놓인 가구 돌리기) `world_image`(그림 → 블록 도트) `world_delete_objects` `world_set_start` `world_undo/redo` `world_save` `world_save_prefab` `world_capture` `world_new`(최대 4096×4096 새 평지 월드) `world_apply_to_game`(새 월드로 추가 `new_world`, 크기 바꾸기 `resize`) `world_restore_backup` `world_remove_from_game` | 맵·프리팹 편집 전부. 그림과 ASCII로 확인하며 작업 |
 | content | `bricks_list` `products_list` `items_search` `content_new_block/furniture/item/sound` `content_added` `block_tile*` `furniture_textures` | 새 블록·가구·아이템·사운드, 블록 아틀라스, 가구 텍스처 |
 | files / tables | `files_search` `text_read/write/edit` `file_import/export/revert` `image_view/adjust` `texture_make` `table_records/upsert/remove` `string_get/set` `pack_extract/verify/build` `packs_list` | 모든 리소스, XML 표 레코드 병합, 문자열, 팩 |
 | gui | `gui_list` `gui_tree` `gui_render` `gui_edit` `gui_textures` `gui_revert` | 화면 레이아웃: 노드 번호가 찍힌 그림을 보고 옮기기·크기·글자·색·그림·추가·삭제 |
@@ -41,7 +41,7 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 ## 4. 안전장치
 
 - 게임 폴더는 읽기만 한다. 모든 변경은 모드 프로젝트에 들어가고, 게임에는 모드 매니저로만 들어간다.
-- 게임을 실제로 바꾸는 도구(`world_apply_to_game`, `world_restore_backup`, `manager_apply`, `manager_restore`)는
+- 게임을 실제로 바꾸는 도구(`world_apply_to_game`, `world_restore_backup`, `world_remove_from_game`, `manager_apply`, `manager_restore`)는
   `confirm=true` 없이 부르면 **무엇이 바뀌는지만** 알려 준다. 에이전트는 사용자에게 물어본 뒤에만 confirm한다.
   게임이 켜져 있으면 거부하고, 바꾸기 전에 백업한다.
 - 내 월드 저장본(`Local\*.bwr`)은 `world_save`가 절대 덮어쓰지 않는다 (`문서\NarewStudio\Worlds\<월드>_edit.bwr`

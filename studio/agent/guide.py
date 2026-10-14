@@ -78,6 +78,11 @@ Save
   Documents\\NarewStudio\\Worlds\\<world>_edit.bwr (the game's save is never overwritten), then
   world_apply_to_game(session=...) shows a dry run; with the user's OK call again with confirm=true
   (the game must be closed; the current save is backed up; world_restore_backup undoes it).
+- bigger worlds: the game only makes 1024x1024. world_new(width=2048) writes a flat world 16..4096 wide to
+  Documents\\NarewStudio\\Worlds; world_apply_to_game(path, new_world="t2048") adds it as a new Local world
+  (resize=true replaces one of another size; world_remove_from_game takes it out again). Tell the user
+  limits.notes: the game server needs ~69 KB of RAM per 16x16 region (2048 ~1 GB, 4096 ~4 GB). 2048 and 4096
+  were verified in game; bigger worlds are refused.
 
 Heights of furniture (measured, not an engine rule):
 - shipped maps: ~90% of objects stand right on the supporting brick (anchor y = brick y + 1); the default.

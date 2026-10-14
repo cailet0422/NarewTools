@@ -3,7 +3,7 @@
 NarewTools is a modding toolkit for **Islet Online** (in-house engine NarewEngine2). The user writes in
 **Korean**; answer in Korean. Tool errors are Korean messages meant to be shown as-is.
 
-Everything NarewStudio (the Qt app) can do is available to you as **111 typed tools**: maps and buildings,
+Everything NarewStudio (the Qt app) can do is available to you as **113 typed tools**: maps and buildings,
 furniture placement, new blocks / furniture / items / sounds, any game file, XML table records, GUI screen
 layouts, sounds, models, packs, the mod manager — plus pictures and ASCII views so you can check your work.
 
@@ -24,13 +24,13 @@ explains workflows: `overview`, `world`, `content`, `gui`, `sound`, `models`, `m
    (`Documents\NarewStudio\Projects\<id>`: `files/` replaced or new files, `merge/` table records).
    Never write into the game folder with your own file tools.
 2. Tools marked **CHANGES THE REAL GAME INSTALL OR ITS SAVES** (`world_apply_to_game`,
-   `world_restore_backup`, `manager_apply`, `manager_restore`) need `confirm=true`. Call once without it,
+   `world_restore_backup`, `world_remove_from_game`, `manager_apply`, `manager_restore`) need `confirm=true`. Call once without it,
    show the user the dry run, **ask**, then confirm. The game must be closed; backups are made first.
 3. The user's own world saves (`<game>\Local\*.bwr`) are never overwritten by `world_save` — it writes a new
    file in `Documents\NarewStudio\Worlds\`; only `world_apply_to_game` (with consent) puts it back.
 4. Do not ship whole original game files in a mod zip; do not try to obtain other players'/servers' worlds.
 5. In-game verified: new blocks, new furniture, hand recipes, strings, UI sound, GUI images/layout, world edits
-   + apply to my world, picture pixel-art walls. **Not verified yet** (say so when you deliver them): edited models/animations in game,
+   + apply to my world, picture pixel-art walls, worlds up to 4096×4096 (`world_new` + `new_world`). **Not verified yet** (say so when you deliver them): edited models/animations in game,
    generic new items' effects, weather/time BGM, multiplayer.
 
 ## Start of a session
@@ -64,6 +64,10 @@ world_image(image, at, width, facing)          a picture file as brick pixel art
 world_undo / world_redo                        every call is one undo step
 world_save                                     pack world -> mod project; game save -> new file
 world_apply_to_game(session)                   dry run -> ask -> confirm=true
+world_new(width, depth)                        new flat world 16..4096 wide (the game itself only makes 1024)
+world_apply_to_game(path, new_world="name")    adds it as a NEW Local\<name>.bwr (nothing overwritten); resize=true
+                                               replaces a world with one of another size
+world_remove_from_game(world)                  takes a world out of Local\ again (backed up first)
 ```
 
 Furniture height: shipped maps put furniture right on the supporting brick (`y = brick + 1`, the default);
@@ -82,6 +86,12 @@ Pictures: `world_image` matches every pixel to the nearest brick colour and stan
 default) reads right for a viewer at smaller z. Walls are double-sided by default (a mirrored layer behind, 2
 bricks thick). `palette="plain"` keeps patterned tiles out; transparent pixels leave cells unchanged. Verified in
 game: a 128×128 double-sided wall in the user's world.
+
+Bigger worlds: the server reads the size from the .bwr header, so `world_new` + `world_apply_to_game(new_world=)`
+gives worlds the game cannot make itself. `world_new` returns `limits.notes` (Korean) - pass them on: over 2048x2048
+the engine's 32-bit block position ids overflow above some height and 16-bit land ids overflow, and the game server
+keeps every 16x16 region in RAM (~69 KB each: 2048 ~1 GB, 4096 ~4 GB). Verified in game: 2048 and 4096 load, play and
+are saved back at their size (blocks above y=128 kept); new worlds stop at 4096 (bigger files are refused).
 
 Saves played with mods: furniture the open game folder's tables do not know (a mod's chair) makes that region's
 objects unreadable — they are kept as they are but not listed, so `world_clear` cannot delete them. The tools say

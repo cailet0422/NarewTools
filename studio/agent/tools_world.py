@@ -252,6 +252,99 @@ def world_new_prefab(ctx, name, width, height, depth):
     return world_open(ctx, n, None)
 
 
+def _memory() -> tuple[int, int] | None:
+    """(physical RAM, commit limit = RAM + page file) in bytes, Windows only."""
+    try:
+        import ctypes
+
+        class MemoryStatus(ctypes.Structure):
+            _fields_ = [('dwLength', ctypes.c_ulong), ('dwMemoryLoad', ctypes.c_ulong)] + \
+                [(n, ctypes.c_ulonglong) for n in ('total_phys', 'avail_phys', 'total_page', 'avail_page',
+                                                   'total_virtual', 'avail_virtual', 'avail_ext')]
+        m = MemoryStatus()
+        m.dwLength = ctypes.sizeof(m)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):
+            return None
+        return m.total_phys, m.total_page
+    except (AttributeError, OSError):
+        return None
+
+
+def world_size_notes(width: int, depth: int) -> dict:
+    """Engine limits for a width x depth world (narew.brick.world_limits) as Korean notes for the user."""
+    lim = brick.world_limits(width, depth)
+    gb = lim['server_ram_bytes'] / 2 ** 30
+    notes = []
+    if width > 1024 or depth > 1024:
+        notes.append('게임의 "맵 만들기"는 항상 1024×1024입니다. 더 큰 월드는 이 파일을 Local\\에 넣어서만 씁니다 '
+                     '(4096×4096까지 게임에서 잘 되는 것을 확인).')
+    if lim['position_id_ok_below_y'] < brick.REGION_HEIGHT:
+        notes.append(f"엔진의 블록 위치 번호(x + 가로×z + 가로×세로×y, 32비트)가 y={lim['position_id_ok_below_y']}부터 "
+                     '넘칩니다. 그 높이 위의 블록 처리가 어긋날 수 있습니다.')
+    if not lim['land_ids_ok']:
+        notes.append(f"땅 소유권 칸이 {lim['land_count']:,}개로 엔진의 16비트 번호(32,768개)를 넘습니다.")
+    mem = _memory()
+    if mem:
+        ram, commit = mem
+        if lim['server_ram_bytes'] > commit:
+            notes.append(f'게임 서버만 약 {gb:.1f} GB가 필요한데 이 PC의 메모리+페이지 파일은 {commit / 2 ** 30:.0f} GB입니다. '
+                         '불러오다 메모리가 모자라 꺼질 것입니다.')
+        elif lim['server_ram_bytes'] > ram * 0.5:
+            notes.append(f'게임 서버만 약 {gb:.1f} GB를 씁니다 (이 PC 메모리 {ram / 2 ** 30:.0f} GB). 매우 느릴 수 있습니다.')
+    return {**lim, 'server_ram_gb': round(gb, 2), 'notes': notes}
+
+
+@tool('world_new', 'world',
+      'Make a new flat world (.bwr) of size 16..4096 (multiples of 16) in Documents\\NarewStudio\\Worlds. '
+      'The game itself only makes 1024x1024 worlds but loads bigger ones from the file header (2048 and 4096 '
+      'verified in game). Put it into the game with world_apply_to_game(path, new_world="name"). The game server '
+      'keeps ~69 KB of RAM per 16x16 region (4096: ~4 GB) - read limits.notes and tell the user.', writes=True,
+      width=INT('x size (multiple of 16, at most 4096).'),
+      depth=INT('z size (multiple of 16, at most 4096; default = width).', None),
+      ground=INT('Brick of the ground (default #60, the game\'s own flat-world floor).', 60),
+      layers=INT('Ground layers from y=0.', 1),
+      name=STR('File name in Documents\\NarewStudio\\Worlds (default flat_<w>x<d>).', None),
+      template=STR('World whose server state/sky/time to copy: a .bwr path or pack name (default '
+                   'map\\256_flat.bwr, the private-server template).', None),
+      open=BOOL('Also open it as a session (slow for very big worlds).', False))
+def world_new(ctx, width, depth, ground, layers, name, template, open):
+    depth = width if depth is None else depth
+    for v, what in ((width, '가로'), (depth, '세로')):
+        if not brick.SIDE <= v <= brick.WORLD_SIDE_MAX or v % brick.SIDE:
+            raise StudioError(f'{what} {v}: 16의 배수로 16~{brick.WORLD_SIDE_MAX}이어야 합니다 '
+                              f'(게임에서 잘 되는 것을 확인한 크기는 {brick.WORLD_SIDE_MAX}까지)')
+    info = render.brick_info(ctx, live=True)
+    _brick_id(info, ground, 'ground')
+    if ground in (AIR, COLLISION):
+        raise StudioError('ground: 바닥 블록은 1~254입니다')
+    template = template or 'map\\256_flat.bwr'
+    doc = ctx.world.open_file(template) if os.path.isfile(template) else ctx.world.open(template)
+    if not doc.is_world:
+        raise StudioError('template은 .bwr 월드여야 합니다')
+    tail = brick.WorldTail(doc.obj.tail.raw)
+    if tail.start_pos is None:
+        raise StudioError('template에서 시작 위치를 찾지 못했습니다. 다른 월드를 주세요 (예: map\\256_flat.bwr)')
+    tail.set_start_pos(width / 2, float(layers), depth / 2)
+    d = savedworlds.default_capture_dir()
+    os.makedirs(d, exist_ok=True)
+    stem = name[:-4] if name and name.lower().endswith('.bwr') else (name or f'flat_{width}x{depth}')
+    if not stem or os.path.basename(stem) != stem or any(c in stem for c in '\\/:*?"<>|'):
+        raise StudioError(f'파일 이름으로 쓸 수 없습니다: {name}')
+    path, n = os.path.join(d, stem + '.bwr'), 2
+    while os.path.exists(path):
+        path, n = os.path.join(d, f'{stem}_{n}.bwr'), n + 1
+    try:
+        size = brick.write_flat_world(path, width, depth, tail, ground, layers)
+    except brick.BrickError as ex:
+        raise StudioError(f'월드를 만들 수 없습니다: {ex}')
+    out = {'path': path, 'size': [width, depth], 'bytes': size, 'ground': ground, 'layers': layers,
+           'start_pos': list(tail.start_pos), 'template': doc.name, 'limits': world_size_notes(width, depth),
+           'next': f'world_apply_to_game(path=..., new_world="{stem}") adds it to the game as a new world (asks first)'}
+    if open:
+        out['session'] = world_open(ctx, None, path)['session']
+    return out
+
+
 @tool('world_info', 'world',
       'Session summary: size, start position, object counts, unsaved edits, where save goes; '
       'objects_unreadable_regions when some furniture could not be read (tables of another game folder / mods).',
@@ -1177,12 +1270,15 @@ def world_capture(ctx):
 
 @tool('world_apply_to_game', 'world',
       'Put an edited copy of the user\'s own world into the game (replaces Local\\<world>.bwr after backing up '
-      '.bwr/.lnd/.npc/.db; the game must be closed; sizes must match). Without confirm=true it only reports what '
-      'would happen. Ask the user before confirming.', game=True,
+      '.bwr/.lnd/.npc/.db; the game must be closed; sizes must match unless resize=true), or add a file as a NEW '
+      'world with new_world="name" (nothing is overwritten; the game lists every Local\\*.bwr). Without '
+      'confirm=true it only reports what would happen. Ask the user before confirming.', game=True,
       path=STR('The edited .bwr (default: the file of session).', None), session=STR('Session whose file to use.', None),
       world=STR('Which Local world, e.g. "lj.bwr" (default: guessed from the file name).', None),
+      new_world=STR('Add as a new world Local\\<new_world>.bwr instead of replacing one.', None),
+      resize=BOOL('Allow replacing a world with one of another size.', False),
       confirm=BOOL('Really do it.', False))
-def world_apply_to_game(ctx, path, session, world, confirm):
+def world_apply_to_game(ctx, path, session, world, new_world, resize, confirm):
     g = ctx.st.need_game().root
     if not path:
         if not session:
@@ -1195,6 +1291,14 @@ def world_apply_to_game(ctx, path, session, world, confirm):
             raise StudioError('이 세션은 팩 월드입니다. 내 월드 저장본(world_list kind=save)을 열어 고친 것만 적용합니다.')
     if savedworlds.is_game_save(g, path):
         raise StudioError('게임 저장본 자체입니다. 고친 사본(world_save가 만든 파일)을 주세요.')
+    if new_world:
+        plan = savedworlds.check_new_world(g, path, new_world)
+        limits = world_size_notes(*plan['new_size'])
+        if not confirm:
+            return {'dry_run': True, **plan, 'limits': limits, 'game_running': savedworlds.game_running(),
+                    'next': 'ask the user, then call again with confirm=true'}
+        return {**savedworlds.add_to_game(g, path, new_world), 'limits': limits,
+                'undo': 'world_remove_from_game takes it out again (backed up first)'}
     if not world:
         stem = os.path.splitext(os.path.basename(path))[0].lower()
         names = [w['name'] for w in savedworlds.local_worlds(g)]
@@ -1202,15 +1306,35 @@ def world_apply_to_game(ctx, path, session, world, confirm):
         world = guess[0] if guess else (names[0] if len(names) == 1 else None)
         if not world:
             raise StudioError(f'어느 월드에 넣을지 world로 정하세요: {names}')
-    plan = savedworlds.check_apply(g, path, world)
+    plan = savedworlds.check_apply(g, path, world, resize)
+    if plan['resized']:
+        plan['limits'] = world_size_notes(*plan['new_size'])
     if not confirm:
         return {'dry_run': True, **plan, 'game_running': savedworlds.game_running(),
                 'backup_to': savedworlds.backup_root(),
                 'warning': 'the game saved after this file: applying drops that progress (kept in the backup)'
                 if plan['save_newer'] else None,
                 'next': 'ask the user, then call again with confirm=true'}
-    r = savedworlds.apply_to_game(g, path, world)
-    return {'applied': True, **r}
+    r = savedworlds.apply_to_game(g, path, world, resize)
+    return {'applied': True, **r, **({'limits': plan['limits']} if plan['resized'] else {})}
+
+
+@tool('world_remove_from_game', 'world',
+      'Take a world out of the game\'s Local\\ (its .bwr/.lnd/.npc/.db are backed up first; world_restore_backup '
+      'puts it back). The game must be closed. Without confirm=true it only reports what would happen. Ask the '
+      'user first.', game=True,
+      world=STR('Local world, e.g. "t2048.bwr".'), confirm=BOOL('Really do it.', False))
+def world_remove_from_game(ctx, world, confirm):
+    g = ctx.st.need_game().root
+    stem = world[:-4] if world.lower().endswith('.bwr') else world
+    rows = [w for w in savedworlds.local_worlds(g) if w['name'].lower() == (stem + '.bwr').lower()]
+    if not rows:
+        raise StudioError(f'Local\\에 그런 월드가 없습니다: {world}')
+    if not confirm:
+        files = [stem + e for e in savedworlds.SAVE_FILES if os.path.isfile(os.path.join(g, 'Local', stem + e))]
+        return {'dry_run': True, 'world': rows[0]['name'], 'files': files, 'backup_to': savedworlds.backup_root(),
+                'game_running': savedworlds.game_running(), 'next': 'ask the user, then call again with confirm=true'}
+    return savedworlds.remove_from_game(g, rows[0]['name'])
 
 
 @tool('world_restore_backup', 'world',

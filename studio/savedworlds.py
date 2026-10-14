@@ -167,7 +167,21 @@ def local_worlds(game_root: str) -> list[dict]:
     return [s for s in list_saved(game_root) if s['folder'] == 'Local']
 
 
-def check_apply(game_root: str, src_path: str, world: str | None = None) -> dict:
+def world_size(data: bytes, what: str) -> tuple[int, int]:
+    """(width, depth) from the header and offset table only - big worlds are not decoded just to check them."""
+    try:
+        return brick.bwr_header(data)
+    except brick.BrickError as ex:
+        raise StudioError(f'{what}을(를) 월드 파일로 읽을 수 없습니다: {ex}')
+
+
+def _check_side(size: tuple[int, int]):
+    if max(size) > brick.WORLD_SIDE_MAX:
+        raise StudioError(f'{size[0]}×{size[1]} 월드는 넣지 않습니다. 게임에서 잘 되는 것을 확인한 크기는 '
+                          f'{brick.WORLD_SIDE_MAX}×{brick.WORLD_SIDE_MAX}까지입니다.')
+
+
+def check_apply(game_root: str, src_path: str, world: str | None = None, resize: bool = False) -> dict:
     """What apply_to_game would do: target save, sizes, and whether the game saved after src."""
     targets = local_worlds(game_root)
     if world:
@@ -175,13 +189,15 @@ def check_apply(game_root: str, src_path: str, world: str | None = None) -> dict
     if not targets:
         raise StudioError('게임 폴더의 Local\\에 넣을 월드 저장본이 없습니다. 싱글 플레이로 한 번 들어갔다 나오세요.')
     t = targets[0]
-    new = brick.World.from_bytes(read_stable(src_path))
-    old = brick.World.from_bytes(read_stable(t['path']))
-    if (new.width, new.depth) != (old.width, old.depth):
-        raise StudioError(f"크기가 다른 월드는 넣을 수 없습니다 ({new.width}×{new.depth} → {old.width}×{old.depth}). "
-                          '같은 월드의 저장본을 고친 파일을 쓰세요.')
+    new = world_size(read_stable(src_path), '넣을 파일')
+    old = world_size(read_stable(t['path']), '게임 저장본')
+    if new != old and not resize:
+        raise StudioError(f"크기가 다른 월드입니다 ({new[0]}×{new[1]} → {old[0]}×{old[1]}). 크기를 바꿔 넣으려면 "
+                          'resize=true를 주세요 (땅 소유권 .lnd는 게임이 새 크기로 다시 만듭니다).')
+    if new != old:
+        _check_side(new)
     src_mtime = os.stat(src_path).st_mtime
-    return {'target': t['path'], 'world': t['name'], 'size': (old.width, old.depth),
+    return {'target': t['path'], 'world': t['name'], 'size': old, 'new_size': new, 'resized': new != old,
             'save_time': t['mtime'], 'src_time': src_mtime, 'save_newer': t['mtime'] > src_mtime + 1}
 
 
@@ -202,12 +218,12 @@ def _backup(target: str, reason: str) -> str:
     return d
 
 
-def apply_to_game(game_root: str, src_path: str, world: str | None = None) -> dict:
+def apply_to_game(game_root: str, src_path: str, world: str | None = None, resize: bool = False) -> dict:
     """Replace the game's Local\\<world>.bwr with src_path, after backing up the save
     (.bwr/.lnd/.npc/.db) to backup_root().  The game must not be running."""
     if game_running():
         raise StudioError('게임이 실행 중입니다. 게임을 완전히 끈 뒤 다시 하세요 (켜져 있으면 게임이 다시 덮어씁니다).')
-    info = check_apply(game_root, src_path, world)
+    info = check_apply(game_root, src_path, world, resize)
     data = read_stable(src_path)
     target = info['target']
     bdir = _backup(target, f'내 월드에 적용 전 ({os.path.basename(src_path)})')
@@ -216,6 +232,61 @@ def apply_to_game(game_root: str, src_path: str, world: str | None = None) -> di
         f.write(data)
     os.replace(tmp, target)
     return {**info, 'backup': bdir, 'bytes': len(data)}
+
+
+_RESERVED = {'con', 'prn', 'aux', 'nul', *(f'com{i}' for i in range(1, 10)), *(f'lpt{i}' for i in range(1, 10))}
+
+
+def check_new_world(game_root: str, src_path: str, name: str) -> dict:
+    """What add_to_game would do: Local\\<name>.bwr must not exist yet (nothing is overwritten)."""
+    stem = name[:-4] if name.lower().endswith('.bwr') else name
+    if (not stem or len(stem) > 40 or stem != stem.strip() or stem.endswith('.') or stem.lower() in _RESERVED
+            or any(c in stem for c in '\\/:*?"<>|') or any(ord(c) < 32 for c in stem)):
+        raise StudioError(f'월드 이름으로 쓸 수 없습니다: "{name}" (40자 이내, \\ / : * ? " < > | 없이)')
+    local = os.path.join(game_root, 'Local')
+    if not os.path.isdir(local):
+        raise StudioError('게임 폴더에 Local\\이 없습니다. 게임에서 싱글 플레이를 한 번 하고 나오세요.')
+    names = {f.lower() for f in os.listdir(local)}
+    clash = [stem + ext for ext in SAVE_FILES if (stem + ext).lower() in names]
+    if clash:
+        raise StudioError(f'Local\\에 같은 이름의 월드가 이미 있습니다 ({", ".join(clash)}). 다른 이름을 쓰세요.')
+    data = read_stable(src_path)
+    size = world_size(data, '넣을 파일')
+    _check_side(size)
+    return {'target': os.path.join(local, stem + '.bwr'), 'world': stem + '.bwr', 'new_size': size,
+            'bytes': len(data)}
+
+
+def add_to_game(game_root: str, src_path: str, name: str) -> dict:
+    """Copy src_path into the game as a NEW world Local\\<name>.bwr (the game lists every Local\\*.bwr)."""
+    if game_running():
+        raise StudioError('게임이 실행 중입니다. 게임을 완전히 끈 뒤 다시 하세요.')
+    info = check_new_world(game_root, src_path, name)
+    data = read_stable(src_path)
+    tmp = info['target'] + '.narew-tmp'
+    with open(tmp, 'wb') as f:
+        f.write(data)
+    os.replace(tmp, info['target'])
+    return {**info, 'added': True}
+
+
+def remove_from_game(game_root: str, world: str) -> dict:
+    """Take Local\\<world>.bwr/.lnd/.npc/.db out of the game: they are copied to backup_root() first, so
+    restore_backup() puts the world back."""
+    if game_running():
+        raise StudioError('게임이 실행 중입니다. 게임을 완전히 끈 뒤 다시 하세요.')
+    stem = world[:-4] if world.lower().endswith('.bwr') else world
+    target = os.path.join(game_root, 'Local', stem + '.bwr')
+    if not stem or os.path.basename(stem) != stem or not os.path.isfile(target):
+        raise StudioError(f'Local\\에 그런 월드가 없습니다: {world}')
+    bdir = _backup(target, '게임에서 월드를 빼기 전')
+    removed = []
+    for ext in SAVE_FILES:
+        p = target[:-4] + ext
+        if os.path.isfile(p):
+            os.remove(p)
+            removed.append(os.path.basename(p))
+    return {'world': stem + '.bwr', 'removed': removed, 'backup': bdir}
 
 
 def list_backups(world: str | None = None) -> list[dict]:

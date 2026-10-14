@@ -46,7 +46,7 @@ and worlds (maps). A mod manager puts them into the game and can always restore 
 |---|---|
 | **NarewStudio.exe** | Makes mods. It only **reads** the game files; changed files and added entries are saved into a mod project |
 | **NarewModManager.exe** | Enables/disables and orders mods, applies them to the game, restores the originals |
-| **NarewAgent.exe** | Bridge for AI agents (console). Exposes NarewStudio as 111 tools over MCP and a command line |
+| **NarewAgent.exe** | Bridge for AI agents (console). Exposes NarewStudio as 113 tools over MCP and a command line |
 | `narew` (Python) | Command line tools: unpack/build packs, models ↔ glTF, brick (voxel) file conversion (run from source) |
 
 ## Features
@@ -104,7 +104,7 @@ NarewTools\
 
 - The three exes share the `_internal` folder, so always move **the whole `NarewTools` folder**.
 - The programs are not code-signed, so Windows SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
-- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.3.0`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
+- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.4.0`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
 - Up to 2.1.0, update by replacing the folder. Settings, mod projects and installed mods are stored in your user folders and stay ([File locations](#file-locations)).
 
 ## First-time setup
@@ -294,8 +294,12 @@ A `merge\` patch (UTF-8). An entry with the same key is replaced whole; otherwis
 
 ## Connecting AI agents
 
-Every NarewStudio feature is available as **111 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
+Every NarewStudio feature is available as **113 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
 Agents check their work with ASCII maps and pictures (top-down map, 3D, GUI, model, waveform).
+
+**Worlds bigger than 1024**: the game's "create map" always makes 1024×1024, but an agent can make a flat world up to
+**4096×4096** with `world_new` and add it as a new world with `world_apply_to_game(new_world="name")` (your other worlds are
+not touched). At 4096 the game's server uses about 4 GB of memory.
 
 | 3D picture (`world_render` view=iso) | Floor plan from above (view=top) |
 |---|---|
@@ -497,6 +501,7 @@ For the other tests (`tests\test_*.py`, `smoke_*.py`) see the arguments at the t
 | New blocks, new furniture, hand-crafting recipes, name strings | ✅ verified in game |
 | UI sound replacement, GUI images and layout changes | ✅ verified in game |
 | World editing (blocks, furniture) + apply to my world | ✅ verified in game |
+| Worlds bigger than 1024 (up to 4096×4096, `world_new`) | ✅ verified in game |
 | Edited models/animations loading in game | ⚠ not verified yet |
 | Effects of generic new items, weather/time background music | ⚠ not verified yet |
 | Multiplayer | ⚠ not verified yet |
@@ -527,7 +532,7 @@ AGENTS.md    instructions for AI agents; .mcp.json registers the MCP server for 
 | [06 Program manual](docs/06-studio-modmanager.md) | NarewStudio and NarewModManager in detail |
 | [07 New content](docs/07-new-content.md) | Engine limits, table merge rules |
 | [08 GUI layout](docs/08-gui-layout.md) | Editing `Gui\*.xml` |
-| [09 AI agents](docs/09-ai-agents.md) | 111 tools, connection, safety |
+| [09 AI agents](docs/09-ai-agents.md) | 113 tools, connection, safety |
 
 The `re/` analysis output mentioned in the docs (game binary dumps, decompiler output) is not included in this repository.
 

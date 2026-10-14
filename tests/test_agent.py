@@ -372,6 +372,56 @@ r = must('world_restore_backup', backup=b[0]['dir'], confirm=True)
 with open(os.path.join(local, 'lj.bwr'), 'rb') as f:
     check('backup restored', f.read() == src)
 
+# ------------------------------------------------------------------ worlds bigger than the game makes (1024)
+r = must('world_new', width=2048, name='big')
+big = r.get('path', '')
+check('world_new 2048 written', os.path.isfile(big) and r.get('size') == [2048, 2048]
+      and r.get('limits', {}).get('land_ids_ok') and r['limits']['position_id_ok_below_y'] == 256)
+with open(big, 'rb') as f:
+    data = f.read()
+check('world_new header + offset table', brick.bwr_header(data) == (2048, 2048))
+W2 = brick.World.from_bytes(data, strict=True)
+check('world_new is flat #60 at y=0, spawn in the middle',
+      W2.get(2047, 0, 2047) == 60 and W2.get(0, 1, 0) == 0 and W2.tail.start_pos == (1024.0, 1.0, 1024.0)
+      and W2.tail.layout == 'server')
+del W2, data
+r = must('world_new', width=4096, name='big')
+check('world_new never overwrites', r.get('path', '').endswith('big_2.bwr'))
+lim = r.get('limits', {})
+check('4096: overflow limits reported', lim.get('position_id_ok_below_y') == 128 and not lim.get('land_ids_ok')
+      and len(lim.get('notes', [])) >= 3)
+check('world_new: bad size refused', not T('world_new', width=100)[0] and not T('world_new', width=8192)[0]
+      and not T('world_new', width=1024, depth=4112)[0])
+huge = os.path.join(SCRATCH, 'huge.bwr')       # a valid world over the limit, as if made elsewhere
+side_max, brick.WORLD_SIDE_MAX = brick.WORLD_SIDE_MAX, 8192
+brick.write_flat_world(huge, 8192, 16, brick.WorldTail(brick.World.read(big).tail.raw))
+brick.WORLD_SIDE_MAX = side_max
+ok, msg, _ = T('world_apply_to_game', path=huge, new_world='huge')
+check('over-4096 world not added to the game', not ok and '4096' in str(msg))
+d = must('world_open', path=big)
+check('big world opens', d.get('size_xyz') == [2048, 256, 2048])
+must('world_close', session=d.get('session'))
+r = must('world_apply_to_game', path=big, new_world='t2048')
+check('new world: dry run first', r.get('dry_run') and r.get('world') == 't2048.bwr'
+      and not os.path.exists(os.path.join(local, 't2048.bwr')))
+r = must('world_apply_to_game', path=big, new_world='t2048', confirm=True)
+with open(os.path.join(local, 't2048.bwr'), 'rb') as f:
+    check('new world added to Local\\', r.get('added') and brick.bwr_header(f.read()) == (2048, 2048))
+check('new world: taken name refused', not T('world_apply_to_game', path=big, new_world='lj', confirm=True)[0])
+check('new world: bad name refused', not T('world_apply_to_game', path=big, new_world='a/b', confirm=True)[0])
+check('other size refused without resize', not T('world_apply_to_game', path=big, world='lj.bwr')[0])
+r = must('world_apply_to_game', path=big, world='lj.bwr', resize=True)
+check('resize: dry run', r.get('dry_run') and r.get('resized') and list(r.get('new_size', ())) == [2048, 2048])
+r = must('world_remove_from_game', world='t2048')
+check('remove: dry run first', r.get('dry_run') and 't2048.bwr' in r.get('files', [])
+      and os.path.exists(os.path.join(local, 't2048.bwr')))
+r = must('world_remove_from_game', world='t2048', confirm=True)
+check('removed from Local\\ and backed up', not os.path.exists(os.path.join(local, 't2048.bwr'))
+      and os.path.isfile(os.path.join(r.get('backup', ''), 't2048.bwr')))
+r = must('world_restore_backup', backup=r.get('backup', ''), confirm=True)
+check('removed world restorable', os.path.isfile(os.path.join(local, 't2048.bwr')))
+os.remove(os.path.join(local, 't2048.bwr'))
+
 # a save played in another install with a mod: a region holds furniture this game folder's tables do not know,
 # so its object block cannot be split (kept verbatim) - the tools must say so instead of skipping it silently
 import dataclasses  # noqa: E402
