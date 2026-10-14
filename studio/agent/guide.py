@@ -58,6 +58,9 @@ Edit (every call = one undo step; world_undo/world_redo)
 - world_shape(sphere|dome|cylinder|cone|pyramid|line, at, radius, height, hollow)
 - world_build(origin, layers, legend): ASCII blueprint, layers bottom-up, row = +z, column = +x, space = keep
 - world_copy(box) -> clip; world_paste(at, clip|prefab, rotate); world_save_prefab(name, clip|session+box)
+- pictures: world_image(image=<png/jpg>, at=low corner, width, facing="-z"|"+z"|"-x"|"+x"|"up") -> pixel art;
+  facing = the side people look from (game space is left-handed: looking toward +z, +x is on the right);
+  double_sided walls (default) read right from both sides; dry_run=true first to look at the preview
 - furniture: products_list(placeable_only=true) -> world_place(product, x, z[, y, rot]) / world_place_many;
   y defaults to standing on the ground; the whole footprint must be air; world_delete_objects(ids|box)
 - lights: world_switch(ids|box, on=true|false); world_objects shows on=true/false for every lamp

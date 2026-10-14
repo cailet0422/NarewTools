@@ -11,6 +11,7 @@ from narew import brick
 
 from ..gl.voxels import (BrickLUT, VoxelRenderer, VoxelStore, game_box_to_render, ground_hit, mesh_region,
                          raycast)
+from ..pixelart import anchor_corner
 from ..svc_world import WorldDoc
 from ..worldedit import collision_to_clear, product_check, rotate_check
 from .glview import GLView
@@ -45,6 +46,7 @@ class WorldView(GLView):
         self.show_objects = True
         self.show_collision = False
         self.prefab = None            # (w, h, d, {(gx, gz): arr})
+        self.image_art = None         # pixelart.PixelArt for the 'image' tool
         self.hover = None             # (x, y, z) target cell
         self.box_start = None
         self.undo_stack, self.redo_stack = [], []
@@ -378,8 +380,19 @@ class WorldView(GLView):
             self.update()
             return
         (x, y, z), n = hit
-        outward = self.tool in ('place', 'prefab', 'product') or (self.tool == 'box' and self.box_mode == 'fill')
+        outward = self.tool in ('place', 'prefab', 'product', 'image') or (self.tool == 'box' and self.box_mode == 'fill')
         self.hover = (x + n[0], y + n[1], z + n[2]) if outward else (x, y, z)
+        if self.tool == 'image':
+            art = self.image_art
+            if art is None:
+                self.hover_text.emit('아래 "🖼 이미지 고르기…"로 그림을 고르세요')
+            else:
+                x0, y0, z0 = anchor_corner(self.hover, art.size, art.facing)
+                sx, sy, sz = art.size
+                self.hover_text.emit(f'이미지 도트 {art.width}×{art.height} ({art.facing})  상자 ({x0}, {y0}, {z0})~'
+                                     f'({x0 + sx - 1}, {y0 + sy - 1}, {z0 + sz - 1})  · 클릭해서 세우기')
+            self.update()
+            return
         if self.tool == 'product':
             if self.product is None:
                 self.hover_text.emit('오른쪽 "설치물" 목록에서 놓을 것을 고르세요')
@@ -402,6 +415,10 @@ class WorldView(GLView):
         if self.tool == 'prefab' and self.prefab:
             pw, ph, pd, _ = self.prefab
             x1, y1, z1 = x0 + pw - 1, y0 + ph - 1, z0 + pd - 1
+        if self.tool == 'image' and self.image_art is not None:
+            sx, sy, sz = self.image_art.size
+            x0, y0, z0 = anchor_corner(h, (sx, sy, sz), self.image_art.facing)
+            x1, y1, z1 = x0 + sx - 1, y0 + sy - 1, z0 + sz - 1
         if self.tool == 'product' and self.product is not None and self.doc and self.doc.is_world:
             ok, _, cells = self._product_check(h)
             cells = cells or [h]
@@ -448,6 +465,8 @@ class WorldView(GLView):
         t = self.tool
         if t == 'product':
             self.place_product(adj)
+        elif t == 'image':
+            self.place_image(adj)
         elif t == 'place':
             self.commit([(*adj, self.selected)])
         elif t == 'erase' and y >= 0:
@@ -506,6 +525,37 @@ class WorldView(GLView):
         if done:
             self._push(('bricks', done))
         self.update()
+
+    def place_image(self, cell) -> bool:
+        """Stand self.image_art (a pixelart.PixelArt) with its bottom middle on cell - a wall's front
+        layer, a floor's middle - as one undo step.  Furniture collision cells are left alone."""
+        art = self.image_art
+        if art is None:
+            self.message.emit('아래 "🖼 이미지 고르기…"로 그림을 먼저 고르세요')
+            return False
+        cells = art.cells(*anchor_corner(cell, art.size, art.facing))
+        self._load_regions(cells)
+        changes, kept = [], 0
+        for x, y, z, v in cells.tolist():
+            if self.store.get(x, y, z) == COLLISION:
+                kept += 1
+            else:
+                changes.append((x, y, z, v))
+        self.commit(changes)
+        if kept:
+            self.message.emit(f'설치물 밑 충돌 칸 {kept:,}개는 그대로 두었습니다')
+        return True
+
+    def _load_regions(self, cells):
+        """Bring every region an edit touches into memory (the view streams only those near the
+        camera, and commit skips cells of regions that are not loaded)."""
+        if not self.doc.is_world or not len(cells):
+            return
+        xs, zs = cells[:, 0], cells[:, 2]
+        ok = (xs >= 0) & (xs < self.doc.width) & (zs >= 0) & (zs < self.doc.depth)
+        for key in set(zip((xs[ok] >> 4).tolist(), (zs[ok] >> 4).tolist())):
+            if key not in self.store.regions:
+                self.store.put(key, self.doc.region_array(*key))
 
     def _set_start(self, p):
         self.start_pos = p

@@ -3,7 +3,7 @@
 NarewTools is a modding toolkit for **Islet Online** (in-house engine NarewEngine2). The user writes in
 **Korean**; answer in Korean. Tool errors are Korean messages meant to be shown as-is.
 
-Everything NarewStudio (the Qt app) can do is available to you as **110 typed tools**: maps and buildings,
+Everything NarewStudio (the Qt app) can do is available to you as **111 typed tools**: maps and buildings,
 furniture placement, new blocks / furniture / items / sounds, any game file, XML table records, GUI screen
 layouts, sounds, models, packs, the mod manager — plus pictures and ASCII views so you can check your work.
 
@@ -30,7 +30,7 @@ explains workflows: `overview`, `world`, `content`, `gui`, `sound`, `models`, `m
    file in `Documents\NarewStudio\Worlds\`; only `world_apply_to_game` (with consent) puts it back.
 4. Do not ship whole original game files in a mod zip; do not try to obtain other players'/servers' worlds.
 5. In-game verified: new blocks, new furniture, hand recipes, strings, UI sound, GUI images/layout, world edits
-   + apply to my world. **Not verified yet** (say so when you deliver them): edited models/animations in game,
+   + apply to my world, picture pixel-art walls. **Not verified yet** (say so when you deliver them): edited models/animations in game,
    generic new items' effects, weather/time BGM, multiplayer.
 
 ## Start of a session
@@ -60,6 +60,7 @@ world_copy -> world_paste(rotate)             copy buildings with their furnitur
 products_list(placeable_only=true) -> world_place / world_place_many
 world_switch(ids | box, on=true|false)         turn lamps on/off (world_objects shows "on")
 world_rotate(ids | box, rot | turn)            turn placed furniture about its anchor (collision moves too)
+world_image(image, at, width, facing)          a picture file as brick pixel art (dry_run=true: preview first)
 world_undo / world_redo                        every call is one undo step
 world_save                                     pack world -> mod project; game save -> new file
 world_apply_to_game(session)                   dry run -> ask -> confirm=true
@@ -75,6 +76,16 @@ place them on (`on=false` for off), `world_paste` keeps the copied state, `world
 on/off. `world_rotate` turns placed furniture in place (a chest keeps its items, a lamp its on/off; the turned
 footprint must be free). Wall-mounted products: rot 0 = wall at +z of the anchor cell, rot 1 = +x, rot 2 = -z,
 rot 3 = -x (verified on shipped maps).
+
+Pictures: `world_image` matches every pixel to the nearest brick colour and stands it as a wall (or a floor,
+`facing="up"`). Game space is left-handed: someone looking toward +z has +x on the right, so `facing="-z"` (the
+default) reads right for a viewer at smaller z. Walls are double-sided by default (a mirrored layer behind, 2
+bricks thick). `palette="plain"` keeps patterned tiles out; transparent pixels leave cells unchanged. Verified in
+game: a 128×128 double-sided wall in the user's world.
+
+Saves played with mods: furniture the open game folder's tables do not know (a mod's chair) makes that region's
+objects unreadable — they are kept as they are but not listed, so `world_clear` cannot delete them. Open such
+saves with the game folder they were played in (`--game "<Steam install>"` on the command line).
 
 ## Code map (when you change the tools themselves)
 

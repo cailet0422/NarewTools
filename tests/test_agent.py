@@ -147,6 +147,30 @@ must('world_undo', session=W)
 objs = must('world_objects', session=W, box=[X0, Y, Z0, X0 + 8, Y + 4, Z0 + 6])
 check('objects listed', objs.get('count') == 2)
 
+# a picture as pixel art (world_image): orientation, transparent pixels, one undo step
+from PIL import Image  # noqa: E402
+pic = Image.new('RGBA', (6, 4), (250, 250, 250, 255))
+pic.putpixel((0, 0), (200, 20, 20, 255))                  # top-left: red
+pic.putpixel((5, 3), (0, 0, 0, 0))                        # bottom-right: transparent
+PIC = os.path.join(SCRATCH, 'pic.png')
+pic.save(PIC)
+IY = Y + 40
+r = must('world_image', session=W, image=PIC, at=[X0, IY, Z0], width=6, dry_run=True)
+check('image dry run: box, count, preview', r.get('size_xyz') == [6, 4, 2] and r.get('blocks') == 46
+      and os.path.isfile(r.get('preview', '')), r)
+check('image dry run changes nothing', s.get(X0, IY + 3, Z0) == 0 and not r.get('changed'))
+r = must('world_image', session=W, image=PIC, at=[X0, IY, Z0], width=6)
+red, white = s.get(X0, IY + 3, Z0), s.get(X0 + 1, IY + 3, Z0)
+check('image: top-left pixel at low x on the top layer (seen from -z)', red and white and red != white, (red, white))
+check('image: back layer mirrored', s.get(X0 + 5, IY + 3, Z0 + 1) == red and s.get(X0, IY + 3, Z0 + 1) == white)
+check('image: transparent pixel left alone', s.get(X0 + 5, IY, Z0) == 0 and s.get(X0, IY, Z0 + 1) == 0)
+check('image: 46 cells in one undo step', r.get('changed') == 46 and s.undo_stack[-1]['label'].startswith('image'), r)
+check('image: unusable brick refused', not T('world_image', session=W, image=PIC, at=[X0, IY, Z0], bricks=[60])[0])
+check('image: box outside the map refused', not T('world_image', session=W, image=PIC, at=[s.W - 3, IY, Z0])[0])
+check('image: missing file refused', not T('world_image', session=W, image=PIC + '.no', at=[X0, IY, Z0])[0])
+must('world_undo', session=W)
+check('image undone', s.get(X0, IY + 3, Z0) == 0 and s.get(X0 + 5, IY + 3, Z0 + 1) == 0)
+
 # looks
 lay = must('world_layer', session=W, y=Y + 1, area=[X0 - 1, Z0 - 1, X0 + 9, Z0 + 7])
 check('layer ascii shows furniture anchor', '&' in lay.get('grid', ''))

@@ -15,12 +15,12 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 - 도구 목록: `python -m studio.agent tools`, 사용법: `python -m studio.agent guide world` (overview, world, content, gui, sound, models, mod, safety)
 - 에이전트용 안내는 `AGENTS.md`(Claude Code는 `CLAUDE.md`로 자동으로 읽음)와 MCP 서버의 instructions에 들어 있다.
 
-## 2. 무엇을 할 수 있나 (도구 110개)
+## 2. 무엇을 할 수 있나 (도구 111개)
 
 | 묶음 | 도구 | 내용 |
 |---|---|---|
 | core | `status` `project_new/open/info/revert/export_zip` `studio_view` `studio_show` `guide` | 게임 폴더·모드 프로젝트, 창이 지금 보여 주는 것, 창에 결과 띄우기 |
-| world | `world_open` `world_layer` `world_section` `world_heightmap` `world_ground` `world_render`(위·3D·전체) `world_fill`(꽉/속 빈/벽/테두리) `world_build`(ASCII 설계도) `world_shape`(구·돔·원기둥·원뿔·피라미드·선) `world_copy/paste`(회전, 가구 포함) `world_place(_many)` `world_switch`(조명 켜기·끄기) `world_rotate`(놓인 가구 돌리기) `world_delete_objects` `world_set_start` `world_undo/redo` `world_save` `world_save_prefab` `world_capture` `world_apply_to_game` `world_restore_backup` | 맵·프리팹 편집 전부. 그림과 ASCII로 확인하며 작업 |
+| world | `world_open` `world_layer` `world_section` `world_heightmap` `world_ground` `world_render`(위·3D·전체) `world_fill`(꽉/속 빈/벽/테두리) `world_build`(ASCII 설계도) `world_shape`(구·돔·원기둥·원뿔·피라미드·선) `world_copy/paste`(회전, 가구 포함) `world_place(_many)` `world_switch`(조명 켜기·끄기) `world_rotate`(놓인 가구 돌리기) `world_image`(그림 → 블록 도트) `world_delete_objects` `world_set_start` `world_undo/redo` `world_save` `world_save_prefab` `world_capture` `world_apply_to_game` `world_restore_backup` | 맵·프리팹 편집 전부. 그림과 ASCII로 확인하며 작업 |
 | content | `bricks_list` `products_list` `items_search` `content_new_block/furniture/item/sound` `content_added` `block_tile*` `furniture_textures` | 새 블록·가구·아이템·사운드, 블록 아틀라스, 가구 텍스처 |
 | files / tables | `files_search` `text_read/write/edit` `file_import/export/revert` `image_view/adjust` `texture_make` `table_records/upsert/remove` `string_get/set` `pack_extract/verify/build` `packs_list` | 모든 리소스, XML 표 레코드 병합, 문자열, 팩 |
 | gui | `gui_list` `gui_tree` `gui_render` `gui_edit` `gui_textures` `gui_revert` | 화면 레이아웃: 노드 번호가 찍힌 그림을 보고 옮기기·크기·글자·색·그림·추가·삭제 |
@@ -69,6 +69,17 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
   3D 에디터에서 마우스로 놓은 조명도 저장할 때 켜진 채로 들어간다. 복사·붙여넣기는 켜짐/꺼짐을 그대로 옮긴다.
 - 벽에 거는 설치물(벽등 등)의 회전: rot 0 = 벽이 기준 칸의 +z 쪽, rot 1 = +x, rot 2 = -z, rot 3 = -x
   (게임에 들어 있는 맵에서 확인).
+- 그림을 블록 도트로: `world_image(image=그림 파일, at=상자의 낮은 모서리, width=가로 칸 수, facing=…)`.
+  픽셀마다 색이 가장 가까운 블록(CIE Lab)을 고른다. 게임 공간은 왼손 좌표계라 +z를 바라보면 +x가 오른쪽이고,
+  `facing="-z"`(기본)는 z가 작은 쪽에 선 사람에게 바로 보인다. `"+z"` `"-x"` `"+x"`는 다른 방향 벽, `"up"`은 바닥
+  (위에서 보면 +z 쪽이 그림 위). 벽은 기본으로 양면(뒤에 좌우를 뒤집은 층 하나 더, 두께 2칸)이라 뒤에서도 글자가
+  바로 읽힌다. `palette="plain"`(기본)은 무늬가 심한 블록을 빼고, `bricks=[…]`로 직접 고를 수 있다(유리·물·식물·반 칸·
+  흙·모래·못캐는 블록은 쓰지 않는다). 투명한 픽셀은
+  그 칸을 그대로 둔다. `dry_run=true`로 미리보기 그림(원본 | 블록)부터 본다.
+  **인게임 확인 (2026-10-14):** 내 월드에 세운 128×128 양면 고양이 그림이 게임에서 잘 보였다.
+- 모드로 추가한 가구가 있는 저장본: 에이전트의 게임 폴더 표에 없는 가구(모드 의자 등)가 있는 영역은 오브젝트를
+  읽지 못해 그대로 두고 목록에 나오지 않는다(`world_clear`로도 지워지지 않음). 그 저장본을 만든 게임 폴더로 열 것
+  (명령줄 `--game "<Steam 설치 폴더>"`).
 - 큰 월드(1024×1024)도 바로 열린다. 읽기는 필요한 영역만 풀고(최근 512영역만 기억), 그림은 512×512칸까지.
 
 ## 6. 개발·테스트

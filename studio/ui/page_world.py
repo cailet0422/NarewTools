@@ -14,6 +14,7 @@ from ..gl.voxels import BrickLUT
 from ..svc_world import WorldService
 from .common import (DARK, ask_text, button, confirm, debounce, error, guarded, hbox, info, label, pil_to_qimage,
                      run_task, save_file, toast)
+from .pixelartdlg import ImageArtDialog
 from .worldview import WorldView
 
 TOOLS = [
@@ -24,6 +25,7 @@ TOOLS = [
     ('pick', '💧 스포이드', '클릭한 블록을 팔레트에서 선택합니다'),
     ('box', '⬛ 상자', '두 번 클릭해 상자 영역을 채우거나 비웁니다'),
     ('prefab', '🏠 붙이기', '아래에서 고른 프리팹(.iaf)을 클릭한 곳에 붙입니다'),
+    ('image', '🖼 이미지 도트', '그림을 블록 도트로 바꿔 클릭한 곳에 세웁니다 (그림·크기·방향은 아래 "🖼 이미지 고르기…")'),
     ('product', '🪑 설치물', '오른쪽 "설치물" 탭에서 고른 가구를 클릭한 곳에 놓습니다 · R: 90° 돌리기 (월드만)'),
     ('edit', '✋ 설치물 편집', '놓인 설치물을 클릭해 고른 뒤 R: 90° 돌리기, T: 조명 켜기/끄기, Delete: 지우기 (월드만)'),
     ('start', '🚩 시작 위치', '캐릭터가 처음 서는 위치 (월드만)'),
@@ -41,6 +43,8 @@ class WorldPage(QWidget):
         self.doc = None
         self.bricks = []
         self.atlas = None
+        self.atlas_img = None         # the same atlas as a PIL image (colours for the image tool)
+        self.image_settings = {}      # last choices of the image dialog (and its picture)
         # left
         self.search = QLineEdit()
         self.search.setPlaceholderText('맵·프리팹 검색')
@@ -121,7 +125,9 @@ class WorldPage(QWidget):
         cl.addWidget(hbox(self.hud, margins=(10, 4, 10, 0)))
         cl.addWidget(hbox(self.objects_box, self.coll_box, label('보는 거리', muted=True), self.radius,
                           label('상자', muted=True), self.box_mode, label('프리팹', muted=True), self.prefab_box,
-                          self.skip_air, 'stretch', margins=(10, 4, 10, 6)))
+                          self.skip_air, button('🖼 이미지 고르기…', self.choose_image,
+                                                tip='그림 파일을 블록 도트로 바꿉니다. 고른 뒤 맵을 클릭하면 세워집니다'),
+                          'stretch', margins=(10, 4, 10, 6)))
         cl.addWidget(label('편집 도구에서는 오른쪽 드래그로 회전, 가운데 드래그로 이동, 휠로 확대, WASD/QE로 이동합니다.',
                            faint=True), alignment=Qt.AlignLeft)
         # right: palette
@@ -339,6 +345,7 @@ class WorldPage(QWidget):
     def _opened(self, r):
         doc, bricks, atlas = r
         self.doc, self.bricks = doc, bricks
+        self.atlas_img = atlas
         self.atlas = QPixmap.fromImage(pil_to_qimage(atlas))
         self.view.open(doc, BrickLUT(bricks), atlas)
         keep, self._keep_cam = getattr(self, '_keep_cam', None), None
@@ -409,6 +416,26 @@ class WorldPage(QWidget):
         self.view.setFocus()
         if tool == 'prefab' and not self.view.prefab:
             toast('아래 "프리팹" 목록에서 붙일 건축물을 고르세요')
+        if tool == 'image' and self.view.image_art is None and self.doc:
+            self.choose_image()
+
+    def choose_image(self):
+        """Pick a picture and how to turn it into bricks, then switch to the image tool."""
+        if not self.doc:
+            toast('맵을 먼저 여세요')
+            return
+        dlg = ImageArtDialog(self, self.bricks, self.atlas_img, self._tile_icon, self.image_settings)
+        if dlg.exec() != ImageArtDialog.Accepted:
+            return
+        self.image_settings = dlg.settings
+        art = self.view.image_art = dlg.art
+        for b in self.tool_group.buttons():
+            if b.property('tool') == 'image':
+                b.setChecked(True)
+        sx, sy, sz = art.size
+        toast(f'이미지 도트 {art.width}×{art.height} (블록 {art.blocks():,}개, 상자 {sx}×{sy}×{sz}): '
+              '맵을 클릭하면 그 칸에 아래 가운데가 섭니다')
+        self.view.setFocus()
 
     @guarded
     def load_prefab(self, name):

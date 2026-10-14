@@ -119,6 +119,41 @@ try:
             win.grab().save(os.path.join(shots, 'world_products.png'))
             if not placed or page.right_tabs.currentIndex() != 1:
                 errors.append(f'world: furniture placement (placed {placed})')
+            # image tool: the dialog turns a picture into bricks, the view stands it on a cell (one undo step)
+            from PIL import Image
+            from studio.pixelart import anchor_corner
+            from studio.ui.pixelartdlg import ImageArtDialog
+            pic = Image.new('RGBA', (40, 20), (240, 240, 240, 255))
+            pic.paste((200, 30, 30, 255), (0, 0, 20, 10))
+            pic.paste((0, 0, 0, 0), (30, 10, 40, 20))
+            dlg = ImageArtDialog(page, page.bricks, page.atlas_img, page._tile_icon, {})
+            dlg._set_picture(pic, 'smoke')
+            dlg.w_spin.setValue(40)
+            dlg.show()
+            pump(2)
+            dlg.grab().save(os.path.join(shots, 'world_image_dialog.png'))
+            dlg.accept()
+            art = dlg.art
+            if not art or (art.width, art.height) != (40, 20) or art.blocks() != 2 * (800 - 100):
+                errors.append(f'world: image dialog gave {art and (art.width, art.height, art.blocks())}')
+            else:
+                page.image_settings = dlg.settings
+                v.image_art = art
+                page.set_tool('image')
+                import numpy as np
+                v._load_regions(np.array([[cx, 0, cz - 9, 0]]))           # off the chairs' rows
+                cell = (cx, v.store.top_y(cx, cz - 9) + 1, cz - 9)
+                x0, y0, z0 = anchor_corner(cell, art.size, art.facing)
+                v._load_regions(art.cells(x0, y0, z0))
+                corner = v.store.get(x0 + 39, y0, z0)                    # a transparent pixel: left as it is
+                n = len(v.undo_stack)
+                v.place_image(cell)
+                pump(2)
+                win.grab().save(os.path.join(shots, 'world_image.png'))
+                top_left = v.store.get(x0, y0 + 19, z0)                  # red pixel, front layer
+                if len(v.undo_stack) != n + 1 or not top_left or v.store.get(x0 + 39, y0 + 19, z0 + 1) != top_left \
+                        or v.store.get(x0 + 39, y0, z0) != corner:
+                    errors.append('world: image tool did not stand the picture')
             while v.undo_stack:                # leave the world unchanged (no "discard edits?" prompt)
                 v.undo()
             if v.dirty():

@@ -7,7 +7,7 @@ import numpy as np
 
 from narew import brick
 
-from .. import savedworlds
+from .. import pixelart, savedworlds
 from ..core import StudioError
 from ..svc_world import TREE_NAMES
 from ..worldedit import (AIR, COLLISION, EditSession, object_id, parse_object_id, rotate_array, rotate_point)
@@ -642,6 +642,62 @@ def world_build(ctx, session, origin, layers, legend, rotate, only_air, keep_col
         s.write_box(ox, oy, oz, vals, mask, only_air=only_air, keep_collision=keep_collision)
         return {'size_xyz': [ww, hh, dd], 'box': [ox, oy, oz, ox + ww - 1, oy + hh - 1, oz + dd - 1]}
     return _edit(s, 'build', run)
+
+
+@tool('world_image', 'world',
+      'Turn a picture file (PNG/JPG/...) into brick pixel art: every pixel becomes the brick of the nearest colour '
+      '(CIE Lab), as a wall or a floor with the box\'s low corner at "at". facing = the side people look at it from: '
+      '"-z" (they stand at smaller z and look toward +z), "+z", "-x", "+x", or "up" (a floor seen from above, +z at '
+      'the top of the picture). double_sided (walls): a mirrored second layer behind, so it reads right from both '
+      'sides (2 bricks thick). Transparent pixels leave cells unchanged. palette "plain" = bricks with little '
+      'pattern (+ iron/gold), "all" = every opaque full block; bricks = your own list of ids instead. dry_run=true '
+      'only makes the preview picture (resized picture | bricks). One undo step. Verified in game: a 128x128 '
+      'double-sided wall (plain, saturation 1.3).',
+      session=SESSION, image=STR('Picture file on disk (PNG, JPG, BMP, GIF, WebP).'),
+      at=POINT('Low corner [x, y, z] of the picture\'s box (a wall stands on y; ground = top brick + 1).'),
+      width=INT(f'Width in bricks (1-{pixelart.MAX_SIDE}).', 64),
+      height=INT('Height in bricks (default: keeps the picture\'s aspect ratio).', None),
+      facing=STR('Side people look at it from (see above).', '-z', enum=pixelart.FACINGS),
+      double_sided=BOOL('Walls: second mirrored layer so it reads right from behind too.', True),
+      palette=STR('Bricks to choose from.', 'plain', enum=pixelart.PRESETS),
+      bricks=ARR('Use only these brick ids (instead of palette).', {'type': 'integer'}, None),
+      saturation=NUM('Colour boost before matching (1.0 = as is; the game\'s bricks are rather muted).', 1.3),
+      dither=BOOL('Floyd-Steinberg dithering: smoother gradients, noisier surface.', False),
+      dry_run=BOOL('Only make the preview.', False), **KEEP)
+def world_image(ctx, session, image, at, width, height, facing, double_sided, palette, bricks, saturation, dither,
+                dry_run, only_air, keep_collision):
+    from PIL import Image, UnidentifiedImageError
+    s = _sess(ctx, session)
+    info = _info(ctx, s)
+    if not os.path.isfile(image):
+        raise StudioError(f'그림 파일이 없습니다: {image}')
+    try:
+        with Image.open(image) as im:
+            picture = im.convert('RGBA')
+    except (OSError, UnidentifiedImageError) as e:
+        raise StudioError(f'그림을 읽지 못했습니다: {image} ({e})')
+    for v in (width, height):
+        if v is not None and not 1 <= v <= pixelart.MAX_SIDE:
+            raise StudioError(f'width/height는 1~{pixelart.MAX_SIDE}입니다')
+    cands = pixelart.candidates(info['bricks'], info['atlas'], ('top',) if facing == 'up' else pixelart.SIDE_FACES)
+    ids = pixelart.preset_ids(cands, palette) if bricks is None else [int(b) for b in bricks]
+    art = pixelart.make(picture, cands, ids, width, height, facing, double_sided, saturation, dither)
+    x0, y0, z0 = (int(round(a)) for a in at)
+    sx, sy, sz = art.size
+    box = [x0, y0, z0, x0 + sx - 1, y0 + sy - 1, z0 + sz - 1]
+    if s.clip(*box) != tuple(box):
+        raise StudioError(f'그림 상자 {box}가 맵 밖으로 나갑니다 (맵 크기 x 0..{s.W - 1}, y 0..{s.H - 1}, '
+                          f'z 0..{s.D - 1}). at이나 width/height를 바꾸세요')
+    p = render.save(art.compare_image(), ctx.out_path(f'{session}_image'))
+    out = {'size_px': [art.width, art.height], 'box': box, 'size_xyz': [sx, sy, sz], 'facing': facing,
+           'blocks': art.blocks(), 'palette_size': len(ids),
+           'bricks_used': [{'id': i, 'name': n, 'count': c} for i, n, c in art.counts()[:24]],
+           'preview': p}
+    if dry_run:
+        return Result({'dry_run': True, **out}, [p])
+    r = _edit(s, f'image {art.width}x{art.height}',
+              lambda: s.write_cells(art.cells(x0, y0, z0), only_air, None, keep_collision))
+    return Result({**r, **out}, [p])
 
 
 # --------------------------------------------------------------------------- copy / paste / prefabs

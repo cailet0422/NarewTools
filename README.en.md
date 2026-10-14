@@ -46,7 +46,7 @@ and worlds (maps). A mod manager puts them into the game and can always restore 
 |---|---|
 | **NarewStudio.exe** | Makes mods. It only **reads** the game files; changed files and added entries are saved into a mod project |
 | **NarewModManager.exe** | Enables/disables and orders mods, applies them to the game, restores the originals |
-| **NarewAgent.exe** | Bridge for AI agents (console). Exposes NarewStudio as 110 tools over MCP and a command line |
+| **NarewAgent.exe** | Bridge for AI agents (console). Exposes NarewStudio as 111 tools over MCP and a command line |
 | `narew` (Python) | Command line tools: unpack/build packs, models ↔ glTF, brick (voxel) file conversion (run from source) |
 
 ## Features
@@ -208,9 +208,10 @@ Edits game maps (`.bwr`) and building prefabs (`.iaf`) in 3D.
 | Rotate furniture 90° | R |
 | Turn placed furniture / switch a lamp / delete ("✋ 설치물 편집") | R / T / Delete |
 
-- Tools: view, place, erase, paint, eyedropper, fill/hollow box, paste prefab, **place furniture**, **edit furniture**, start position, delete object.
+- Tools: view, place, erase, paint, eyedropper, fill/hollow box, paste prefab, **image pixel art**, **place furniture**, **edit furniture**, start position, delete object.
 - **Place furniture**: choose a piece in the "설치물" (Furniture) tab on the right and click. Green = can be placed, red = blocked. The hidden collision cells under furniture are filled in automatically. Lamps are placed switched on.
 - **Edit furniture** ("✋ 설치물 편집"): click a placed piece to pick it (light-blue box); **R** turns it 90° about the cell it stands on (its collision cells move too, a chest keeps its items), **T** switches a lamp on/off, **Delete** removes it. Lamp markers: yellow = on, grey = off. A lamp that is off does not shine in game.
+- **Image pixel art** ("🖼 이미지 고르기…"): pick a picture file (or one from the clipboard), its size, direction (a wall facing one of four ways, or a floor), double-sided, colour boost, dithering and which bricks to use, and check the preview. Clicking the map stands the picture with its bottom middle on that cell (a wall's front layer, a floor's middle). Each pixel takes the brick of the nearest colour; patterned bricks are left out by default and transparent pixels leave cells unchanged. A double-sided wall reads right from behind too. One undo removes it.
 - Large maps only load around the camera (adjustable view distance). Click the minimap to jump.
 
 **Editing your own world** (single-player world)
@@ -293,7 +294,7 @@ A `merge\` patch (UTF-8). An entry with the same key is replaced whole; otherwis
 
 ## Connecting AI agents
 
-Every NarewStudio feature is available as **110 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
+Every NarewStudio feature is available as **111 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
 Agents check their work with ASCII maps and pictures (top-down map, 3D, GUI, model, waveform).
 
 | 3D picture (`world_render` view=iso) | Floor plan from above (view=top) |
@@ -526,7 +527,7 @@ AGENTS.md    instructions for AI agents; .mcp.json registers the MCP server for 
 | [06 Program manual](docs/06-studio-modmanager.md) | NarewStudio and NarewModManager in detail |
 | [07 New content](docs/07-new-content.md) | Engine limits, table merge rules |
 | [08 GUI layout](docs/08-gui-layout.md) | Editing `Gui\*.xml` |
-| [09 AI agents](docs/09-ai-agents.md) | 110 tools, connection, safety |
+| [09 AI agents](docs/09-ai-agents.md) | 111 tools, connection, safety |
 
 The `re/` analysis output mentioned in the docs (game binary dumps, decompiler output) is not included in this repository.
 
