@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import time
 
-from narew.paths import appdata, load_json, shared_dir
+from narew.paths import appdata, load_json, manager_home, manager_local_dir, shared_dir
 
 from ..core import Studio, StudioError
 from . import live
@@ -26,6 +26,10 @@ class Clip:
 
 class AgentContext:
     def __init__(self, game: str | None = None, project: str | None = None, follow: bool = True):
+        # mods an agent installed up to 2.4.0 sit in AppData, which an agent in a packaged app (Claude desktop)
+        # sees a private copy of: move them to the shared folder now, not only on the first manager_* call
+        from modmanager.core import adopt_legacy
+        adopt_legacy(manager_home(), manager_local_dir())
         self.st = Studio()
         self.pinned = bool(game or project)
         if self.pinned:                      # explicit folders: never change the window's settings
