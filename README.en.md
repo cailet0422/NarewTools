@@ -104,7 +104,7 @@ NarewTools\
 
 - The three exes share the `_internal` folder, so always move **the whole `NarewTools` folder**.
 - The programs are not code-signed, so Windows SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
-- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.2.0`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
+- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.3.0`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
 - Up to 2.1.0, update by replacing the folder. Settings, mod projects and installed mods are stored in your user folders and stay ([File locations](#file-locations)).
 
 ## First-time setup
