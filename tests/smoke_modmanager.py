@@ -73,7 +73,25 @@ mgr.restore_all()
 win.refresh()
 pump(0.3)
 win.grab().save(os.path.join(shots, 'mm_restored.png'))
+# a mod copied into the mods folder by hand shows up after ⟳ 새로고침 (and F5 is the same action)
+import shutil  # noqa: E402
+before_n = win.list.count()
+src = os.path.join(mgr.mods_dir, mgr.installed()[0]['id'])
+shutil.copytree(src, os.path.join(mgr.mods_dir, 'hand-copied'))
+with open(os.path.join(mgr.mods_dir, 'hand-copied', 'mod.json'), encoding='utf-8') as f:
+    mj = f.read()
+with open(os.path.join(mgr.mods_dir, 'hand-copied', 'mod.json'), 'w', encoding='utf-8') as f:
+    f.write(mj.replace('"id": "%s"' % mgr.installed()[0]['id'], '"id": "hand-copied"', 1))
+win.reload_btn.click()
+pump(0.3)
+reload_ok = win.list.count() == before_n + 1 and any(
+    win.list.item(i).data(Qt.UserRole) == 'hand-copied' for i in range(win.list.count()))
+shutil.rmtree(os.path.join(mgr.mods_dir, 'hand-copied'))
+win.reload_mods()
+pump(0.3)
+reload_ok = reload_ok and win.list.count() == before_n
 checks = [('apply ran', applied['applied'] and applied['in_sync']),
+          ('refresh button picks up mods folder changes', reload_ok),
           ('report shown', any('표 병합' in i for i in infos)),
           ('reorder saved', order[0] == 'creator-test'),
           ('outside change shown', seen_off),

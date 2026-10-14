@@ -6,7 +6,7 @@ import os
 import time
 
 from PySide6.QtCore import QEvent, QSize, Qt, QTimer
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QFrame, QGridLayout, QHeaderView, QLabel, QListWidget,
                                QListWidgetItem, QMainWindow, QProgressBar, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
@@ -92,8 +92,11 @@ class ModWindow(QMainWindow):
         ll.addWidget(hbox(button('＋ .zip 설치…', self.install_zip, primary=True), button('폴더에서 설치…', self.install_dir),
                           'stretch', button('▲', lambda: self.move(-1), tip='우선순위 올리기'),
                           button('▼', lambda: self.move(1), tip='우선순위 내리기')))
-        ll.addWidget(hbox(button('모드 폴더 열기', lambda: open_in_shell(self.mgr.mods_dir)), 'stretch',
-                          button('제거', self.remove, danger=True)))
+        self.reload_btn = button('⟳ 새로고침', self.reload_mods,
+                                 tip='모드 폴더·설정·게임 폴더 상태를 다시 읽습니다 (F5)')
+        ll.addWidget(hbox(button('모드 폴더 열기', lambda: open_in_shell(self.mgr.mods_dir)), self.reload_btn,
+                          'stretch', button('제거', self.remove, danger=True)))
+        QShortcut(QKeySequence(Qt.Key_F5), self, self.reload_mods)
 
         # ---- right: details
         self.preview = QLabel()
@@ -234,6 +237,15 @@ class ModWindow(QMainWindow):
         if not self.list.count():
             self.show_mod(None)
         self.update_banner(updated)
+
+    def reload_mods(self):
+        """Button / F5: read the mods folder, settings and the game folder again (mods copied in by hand,
+        NarewStudio's "install", a Steam update)."""
+        if self.working:
+            self.statusBar().showMessage('적용·복구가 끝난 뒤에 새로고침하세요.', 3000)
+            return
+        self.refresh()
+        self.statusBar().showMessage(f'새로고침했습니다 — 설치된 모드 {self.list.count()}개', 3000)
 
     def update_banner(self, updated=()):
         mgr = self.mgr
