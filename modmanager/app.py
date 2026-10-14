@@ -38,6 +38,7 @@ def main(argv=None):
         QMessageBox.information(None, 'NarewModManager', 'NarewModManager가 이미 실행 중입니다.\n열려 있는 창을 쓰세요.')
         return 0
     win.show()
+    win.updater.start()
     for a in argv:                    # "open with" / drag onto the exe: install those mods
         if os.path.exists(a):
             QTimer.singleShot(200, lambda a=a: win.install(a))

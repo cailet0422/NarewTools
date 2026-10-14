@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout, QFrame, Q
                                QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
 
 from narew.modfmt import ModInfo, slug
+from narew.version import VERSION
 
 from ..core import Studio, StudioError
 from .common import button, error, guarded, hbox, label, pick_folder, toast
@@ -96,6 +97,9 @@ class MainWindow(QMainWindow):
         hl.addStretch(1)
         hl.addWidget(button('새 모드', self.new_project))
         hl.addWidget(button('모드 열기', self.open_project))
+        from .updates import Updater          # GitHub releases: check, download, put in on close
+        self.updater = Updater(self, 'NarewStudio.exe')
+        hl.addWidget(button(f'v{VERSION}', self.updater.check_now, tip='업데이트 확인'))
         # nav + stack
         self.nav = QListWidget()
         self.nav.setObjectName('nav')

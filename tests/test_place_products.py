@@ -106,16 +106,78 @@ old_cells = cells_of(old[2], old[6], (old[3], old[4], old[5]))
 view.delete_object(old[0])
 check('delete shipped product clears its collision', all(view.store.get(*c) == 0 for c in old_cells))
 
+# "✋ 설치물 편집": pick a placed object, turn it (R) and switch a lamp (T)
+sel = []
+view.selection_changed.connect(sel.append)
+view.set_tool('edit')
+check('no selection: turning asks to pick first', not view.rotate_object() and '고르세요' in msgs[-1])
+a30 = free_spot(30, 0)                                       # 3x2 table anchored at a corner
+view.set_tool('product')
+view.product, view.rot = 30, 0
+view.place_product(a30)
+alamp = free_spot(324, 0)
+view.product, view.rot = 324, 0
+view.place_product(alamp)
+k30 = next(k for k, v in view.added.items() if v[0] == 30)
+klamp = next(k for k, v in view.added.items() if v[0] == 324 and v[1:4] == alamp)
+view.set_tool('edit')
+view._select(k30)
+c0, c1, c2 = (set(cells_of(30, r, a30)) for r in range(3))
+check('table footprint changes when turned', c0 != c1)
+ok = view.rotate_object()
+check('turn a new table 90°: collision moves', ok and view._live(k30)[6] == 1
+      and all(view.store.get(*c) == 255 for c in c1) and all(view.store.get(*c) == 0 for c in c0 - c1))
+check('selection info follows the turn', sel and sel[-1] and sel[-1]['rot'] == 1 and not sel[-1]['switchable'])
+view.undo()
+check('undo turn', view._live(k30)[6] == 0 and all(view.store.get(*c) == 255 for c in c0)
+      and all(view.store.get(*c) == 0 for c in c1 - c0))
+view.redo()
+blk = sorted(c2 - c1)[0]
+view.commit([(*blk, 4)])
+check('blocked turn refused', not view.rotate_object() and '막혀' in msgs[-1] and view._live(k30)[6] == 1)
+view.undo()                                                  # the blocking brick
+check('a table cannot be switched', not view.toggle_object())
+view._select(klamp)
+check('a new lamp starts on', view.is_on(klamp) and sel[-1]['switchable'] and sel[-1]['on'])
+check('T switches it off', view.toggle_object() and not view.is_on(klamp) and sel[-1]['on'] is False)
+view.undo()
+check('undo switch: on again', view.is_on(klamp))
+view.redo()
+turned_old = None                                            # a shipped product that has room to turn
+for o in [o for o in view.live_objects() if o[0][0] != 'new' and o[1] == brick.OBJ_PRODUCT]:
+    view._select(o[0])
+    if view.rotate_object():
+        turned_old = view._live(o[0])
+        break
+check('turn a shipped product', turned_old is not None)
+lamp_old = next((o for o in view.live_objects()                # (a tree's type is not a product id)
+                 if o[0][0] != 'new' and o[1] == brick.OBJ_PRODUCT and view.switchable(o[2])), None)
+check('the map has a shipped lamp', lamp_old is not None)
+old_state = view.state_of(lamp_old[0])
+view._select(lamp_old[0])
+view.toggle_object()
+view.set_tool('view')
+check('leaving the tool drops the selection', view.sel is None and sel[-1] is None)
+
 # save as a new file and read it back strictly
-deleted, added = view.object_edits()
-check('edits to save: 1 deleted, 5 added', len(deleted) == 1 and len(added) == 5)
+deleted, added, states, rots = view.object_edits()
+check('edits to save: 1 deleted, 7 added, 1 switched, 1 turned', len(deleted) == 1 and len(added) == 7
+      and list(states) == [lamp_old[0]] and list(rots) == [turned_old[0]])
 regions = {k: view.store.regions[k] for k in view.store.modified}
 out = os.path.join(SCRATCH, '64_0_furnished.bwr')
-svc.save_as(doc, out, regions, deleted, None, added)
+svc.save_as(doc, out, regions, deleted, None, added, states, rots)
 view.mark_saved()
 w = brick.World.read(out, doc.products, strict=True)
 objs = {(o.x, o.y, o.z): o for _, o in w.iter_objects()}
-check('strict re-read: object count', len(objs) == len({(o[5], o[6], o[7]) for o in before}) - 1 + 5)
+check('strict re-read: object count', len(objs) == len({(o[5], o[6], o[7]) for o in before}) - 1 + 7)
+o30, olamp = objs.get(a30), objs.get(alamp)
+check('turned table saved with rot 1 and its collision', o30 and o30.rot == 1 and all(w.get(*c) == 255 for c in c1)
+      and all(w.get(*c) == 0 for c in c0 - c1))
+check('lamp switched off saved without 0x10', olamp and not olamp.state & brick.STATE_ON)
+ot = objs.get(tuple(turned_old[3:6]))
+check('turned shipped product saved with its new rotation', ot and ot.type_id == turned_old[2] and ot.rot == turned_old[6])
+ol = objs.get(tuple(lamp_old[3:6]))
+check('switched shipped lamp saved (only bit 0x10 changed)', ol and ol.state == old_state ^ brick.STATE_ON)
 for pid, (a, rot) in placed.items():
     o = objs.get(a)
     pt = doc.products.get(pid)

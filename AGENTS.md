@@ -3,7 +3,7 @@
 NarewTools is a modding toolkit for **Islet Online** (in-house engine NarewEngine2). The user writes in
 **Korean**; answer in Korean. Tool errors are Korean messages meant to be shown as-is.
 
-Everything NarewStudio (the Qt app) can do is available to you as **109 typed tools**: maps and buildings,
+Everything NarewStudio (the Qt app) can do is available to you as **110 typed tools**: maps and buildings,
 furniture placement, new blocks / furniture / items / sounds, any game file, XML table records, GUI screen
 layouts, sounds, models, packs, the mod manager — plus pictures and ASCII views so you can check your work.
 
@@ -59,6 +59,7 @@ world_fill / world_build / world_shape / world_set_blocks / world_replace / worl
 world_copy -> world_paste(rotate)             copy buildings with their furniture
 products_list(placeable_only=true) -> world_place / world_place_many
 world_switch(ids | box, on=true|false)         turn lamps on/off (world_objects shows "on")
+world_rotate(ids | box, rot | turn)            turn placed furniture about its anchor (collision moves too)
 world_undo / world_redo                        every call is one undo step
 world_save                                     pack world -> mod project; game save -> new file
 world_apply_to_game(session)                   dry run -> ask -> confirm=true
@@ -71,8 +72,9 @@ existing objects differ — match them unless the user says otherwise.
 Lights: products of kind `"on"` (lamps, candles, street lights) only shine in game when the object state has
 bit `0x10` (IsUse) set — shipped maps store most lamps with state 16 (191 of 297). `world_place` / `world_place_many`
 place them on (`on=false` for off), `world_paste` keeps the copied state, `world_switch` turns existing ones
-on/off. Wall-mounted products: rot 0 = wall at +z of the anchor cell, rot 1 = +x, rot 2 = -z, rot 3 = -x
-(verified on shipped maps).
+on/off. `world_rotate` turns placed furniture in place (a chest keeps its items, a lamp its on/off; the turned
+footprint must be free). Wall-mounted products: rot 0 = wall at +z of the anchor cell, rot 1 = +x, rot 2 = -z,
+rot 3 = -x (verified on shipped maps).
 
 ## Code map (when you change the tools themselves)
 

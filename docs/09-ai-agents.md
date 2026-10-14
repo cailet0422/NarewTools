@@ -15,12 +15,12 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 - 도구 목록: `python -m studio.agent tools`, 사용법: `python -m studio.agent guide world` (overview, world, content, gui, sound, models, mod, safety)
 - 에이전트용 안내는 `AGENTS.md`(Claude Code는 `CLAUDE.md`로 자동으로 읽음)와 MCP 서버의 instructions에 들어 있다.
 
-## 2. 무엇을 할 수 있나 (도구 109개)
+## 2. 무엇을 할 수 있나 (도구 110개)
 
 | 묶음 | 도구 | 내용 |
 |---|---|---|
 | core | `status` `project_new/open/info/revert/export_zip` `studio_view` `studio_show` `guide` | 게임 폴더·모드 프로젝트, 창이 지금 보여 주는 것, 창에 결과 띄우기 |
-| world | `world_open` `world_layer` `world_section` `world_heightmap` `world_ground` `world_render`(위·3D·전체) `world_fill`(꽉/속 빈/벽/테두리) `world_build`(ASCII 설계도) `world_shape`(구·돔·원기둥·원뿔·피라미드·선) `world_copy/paste`(회전, 가구 포함) `world_place(_many)` `world_switch`(조명 켜기·끄기) `world_delete_objects` `world_set_start` `world_undo/redo` `world_save` `world_save_prefab` `world_capture` `world_apply_to_game` `world_restore_backup` | 맵·프리팹 편집 전부. 그림과 ASCII로 확인하며 작업 |
+| world | `world_open` `world_layer` `world_section` `world_heightmap` `world_ground` `world_render`(위·3D·전체) `world_fill`(꽉/속 빈/벽/테두리) `world_build`(ASCII 설계도) `world_shape`(구·돔·원기둥·원뿔·피라미드·선) `world_copy/paste`(회전, 가구 포함) `world_place(_many)` `world_switch`(조명 켜기·끄기) `world_rotate`(놓인 가구 돌리기) `world_delete_objects` `world_set_start` `world_undo/redo` `world_save` `world_save_prefab` `world_capture` `world_apply_to_game` `world_restore_backup` | 맵·프리팹 편집 전부. 그림과 ASCII로 확인하며 작업 |
 | content | `bricks_list` `products_list` `items_search` `content_new_block/furniture/item/sound` `content_added` `block_tile*` `furniture_textures` | 새 블록·가구·아이템·사운드, 블록 아틀라스, 가구 텍스처 |
 | files / tables | `files_search` `text_read/write/edit` `file_import/export/revert` `image_view/adjust` `texture_make` `table_records/upsert/remove` `string_get/set` `pack_extract/verify/build` `packs_list` | 모든 리소스, XML 표 레코드 병합, 문자열, 팩 |
 | gui | `gui_list` `gui_tree` `gui_render` `gui_edit` `gui_textures` `gui_revert` | 화면 레이아웃: 노드 번호가 찍힌 그림을 보고 옮기기·크기·글자·색·그림·추가·삭제 |
@@ -64,6 +64,8 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
   켜져 있어야 게임에서 빛난다(빛은 모델 .nwmt의 `<light_list>`). 게임에 들어 있는 맵의 조명은 대부분 상태 16이다.
   `world_place`·`world_place_many`는 조명을 **켠 채로** 놓고(`on=false`면 끈 채로), `world_objects`는 조명마다
   `on`을 보여 주며, `world_switch(ids 또는 box, on=true/false)`로 이미 있는 조명을 켜고 끈다(다른 비트는 그대로).
+- 놓인 가구 돌리기: `world_rotate(ids 또는 box, rot=0~3 또는 turn=칸 수)` — 놓인 칸을 중심으로 게임의 R 키처럼 돌린다.
+  충돌 칸이 함께 옮겨지고 오브젝트는 그대로 남는다(보관함 속 아이템, 조명 켜짐/꺼짐 유지). 돌린 자리가 막히면 `failed`에 나온다.
   3D 에디터에서 마우스로 놓은 조명도 저장할 때 켜진 채로 들어간다. 복사·붙여넣기는 켜짐/꺼짐을 그대로 옮긴다.
 - 벽에 거는 설치물(벽등 등)의 회전: rot 0 = 벽이 기준 칸의 +z 쪽, rot 1 = +x, rot 2 = -z, rot 3 = -x
   (게임에 들어 있는 맵에서 확인).

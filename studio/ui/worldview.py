@@ -12,11 +12,13 @@ from narew import brick
 from ..gl.voxels import (BrickLUT, VoxelRenderer, VoxelStore, game_box_to_render, ground_hit, mesh_region,
                          raycast)
 from ..svc_world import WorldDoc
-from ..worldedit import collision_to_clear, product_check
+from ..worldedit import collision_to_clear, product_check, rotate_check
 from .glview import GLView
 
 OBJ_COLORS = {1: (0.33, 0.8, 0.33), 2: (1.0, 0.6, 0.2)}
 NEW_OBJ_COLOR = (1.0, 0.45, 0.8)          # products placed in this session (not saved yet)
+LAMP_COLORS = {True: (1.0, 0.92, 0.25), False: (0.45, 0.42, 0.36)}     # switchable products: on / off
+SEL_COLOR = (0.3, 0.9, 1.0, 1.0)          # box around the object picked with the 'edit' tool
 COLLISION = 255
 
 
@@ -26,6 +28,7 @@ class WorldView(GLView):
     picked = Signal(int)
     camera_moved = Signal(float, float)
     message = Signal(str)
+    selection_changed = Signal(object)    # dict about the object picked with the 'edit' tool, or None
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -50,6 +53,9 @@ class WorldView(GLView):
         self.product = None           # product id for the 'product' tool
         self.rot = 0                  # its rotation (x 90 degrees), R turns it
         self.added: dict[tuple, tuple] = {}     # ('new', n) -> (type_id, x, y, z, rot)
+        self.states: dict[tuple, int] = {}      # object key -> state byte set here (lamp on/off)
+        self.rots: dict[tuple, int] = {}        # object key -> rotation set here (turned with the 'edit' tool)
+        self.sel = None                         # key of the object picked with the 'edit' tool
         self._new_n = 0
         self.start_pos = None
         self.start_changed = False
@@ -82,6 +88,8 @@ class WorldView(GLView):
         self.undo_stack, self.redo_stack = [], []
         self.deleted, self.box_start, self.hover = {}, None, None
         self.added, self.rot = {}, 0
+        self.states, self.rots = {}, {}
+        self._select(None)
         self.start_pos = list(doc.start_pos()) if doc.start_pos() else None
         self.start_changed = False
         self.objects = doc.objects()
@@ -104,14 +112,34 @@ class WorldView(GLView):
 
     def live_objects(self):
         """(key, kind, type, x, y, z, rot) of the objects in the world now: the document's objects
-        that were not deleted plus the products placed in this session (key ('new', n))."""
+        that were not deleted plus the products placed in this session (key ('new', n)); turned
+        objects with their new rotation."""
+        rots = self.rots
         for ob in self.objects:
             key = (ob[0], ob[1], ob[2])
             if key not in self.deleted:
-                yield (key, *ob[3:9])
+                yield (key, *ob[3:8], rots.get(key, ob[8]))
         for key, (t, x, y, z, r) in self.added.items():
             if key not in self.deleted:
-                yield key, brick.OBJ_PRODUCT, t, x, y, z, r
+                yield key, brick.OBJ_PRODUCT, t, x, y, z, rots.get(key, r)
+
+    def _live(self, key):
+        return next((o for o in self.live_objects() if o[0] == key), None) if key is not None else None
+
+    def switchable(self, type_id) -> bool:
+        """A product the player turns on and off (lamps): its light shines only with brick.STATE_ON."""
+        return bool(self.doc) and brick.switchable(self.doc.products.get(type_id))
+
+    def state_of(self, key) -> int:
+        """State byte of an object: set here, or as saved (new products: lamps on, as svc_world saves them)."""
+        if key in self.states:
+            return self.states[key]
+        if key[0] == 'new':
+            return brick.placed_state(self.doc.products.get(self.added[key][0]))
+        return self.doc.object_state(*key)
+
+    def is_on(self, key) -> bool:
+        return bool(self.state_of(key) & brick.STATE_ON)
 
     def _upload_objects(self):
         """Queue the object markers for the GPU; the upload happens in draw(), where the GL context
@@ -123,10 +151,14 @@ class WorldView(GLView):
         if not self.ren or not getattr(self, '_objects_dirty', False):
             return
         self._objects_dirty = False
-        rows = [[x + 0.5, y + 0.5, -(z + 0.5), *(NEW_OBJ_COLOR if key[0] == 'new' else
-                                                  OBJ_COLORS.get(kind, (0.8, 0.8, 0.8)))]
-                for key, kind, _t, x, y, z, _r in self.live_objects()]
+        rows = [[x + 0.5, y + 0.5, -(z + 0.5), *self._obj_color(key, kind, t)]
+                for key, kind, t, x, y, z, _r in self.live_objects()]
         self.ren.set_objects(np.array(rows, dtype=np.float32).reshape(-1, 6))
+
+    def _obj_color(self, key, kind, t):
+        if kind == brick.OBJ_PRODUCT and self.switchable(t):
+            return LAMP_COLORS[self.is_on(key)]
+        return NEW_OBJ_COLOR if key[0] == 'new' else OBJ_COLORS.get(kind, (0.8, 0.8, 0.8))
 
     def product_name(self, type_id) -> str:
         pt = self.doc.products.get(type_id) if self.doc else None
@@ -142,6 +174,9 @@ class WorldView(GLView):
         mvp = self.cam.proj(w / max(h, 1)) @ self.cam.view()
         boxes = []
         b = self._target_box()
+        if b:
+            boxes.append(b)
+        b = self._selection_box()
         if b:
             boxes.append(b)
         if self.start_pos and self.doc.is_world:
@@ -223,6 +258,8 @@ class WorldView(GLView):
     def set_tool(self, tool):
         self.tool = tool
         self.box_start = None
+        if tool != 'edit' and self.sel is not None:
+            self._select(None)
         if tool == 'view':
             self.rotate_button, self.pan_button = Qt.LeftButton, Qt.RightButton
         else:
@@ -238,6 +275,14 @@ class WorldView(GLView):
             return
         if e.key() == Qt.Key_R and self.tool == 'product':
             self.rotate_product()
+            return
+        if self.tool == 'edit' and e.key() in (Qt.Key_R, Qt.Key_T, Qt.Key_Delete, Qt.Key_Backspace):
+            if e.key() == Qt.Key_R:
+                self.rotate_object()
+            elif e.key() == Qt.Key_T:
+                self.toggle_object()
+            else:
+                self.delete_selected()
             return
         self.keys.add(e.key())
 
@@ -313,16 +358,18 @@ class WorldView(GLView):
     def _object_text(self, ob) -> str:
         key, kind, t, x, y, z, r = ob
         what = '나무' if kind == brick.OBJ_TREE else '설치물 ' + self.product_name(t)
-        return f'{what} ({x}, {y}, {z}) {r * 90}°' + ('  · 새로 놓음' if key[0] == 'new' else '')
+        lamp = ('  · 켜짐' if self.is_on(key) else '  · 꺼짐') if kind == brick.OBJ_PRODUCT and self.switchable(t) else ''
+        return f'{what} ({x}, {y}, {z}) {r * 90}°' + lamp + ('  · 새로 놓음' if key[0] == 'new' else '')
 
     def _hover(self, pos):
         if not self.doc:
             return
-        if self.tool == 'object':
+        if self.tool in ('object', 'edit'):
             ob = self._pick_object(pos)
             self.hover = None
             if ob is not None:
-                self.hover_text.emit(self._object_text(ob))
+                self.hover_text.emit(self._object_text(ob) + ('  · 클릭: 고르기 (R 돌리기, T 켜기/끄기, Delete 지우기)'
+                                                              if self.tool == 'edit' else ''))
             self.update()
             return
         hit = self._pick(pos)
@@ -349,7 +396,7 @@ class WorldView(GLView):
 
     def _target_box(self):
         h = self.hover
-        if h is None or self.tool in ('view', 'object'):
+        if h is None or self.tool in ('view', 'object', 'edit'):
             return None
         x0, y0, z0 = x1, y1, z1 = h
         if self.tool == 'prefab' and self.prefab:
@@ -371,12 +418,27 @@ class WorldView(GLView):
         red = self.tool == 'erase' or (self.tool == 'box' and self.box_mode == 'erase')
         return lo, size, (1.0, 0.35, 0.35, 1.0) if red else (1.0, 1.0, 0.2, 1.0)
 
+    def _selection_box(self):
+        ob = self._live(self.sel) if self.tool == 'edit' else None
+        if ob is None or not self.doc:
+            return None
+        key, kind, t, x, y, z, r = ob
+        cells = [(x + dx, y + dy, z + dz) for dx, dy, dz in self.doc.footprint(t, r)] \
+            if kind == brick.OBJ_PRODUCT else [(x, y, z)]
+        lo, size = game_box_to_render(*(min(c[i] for c in cells) for i in range(3)),
+                                      *(max(c[i] for c in cells) for i in range(3)))
+        return lo, size, SEL_COLOR
+
     # ------------------------------------------------------------------ actions
     def act(self, pos):
         if self.tool == 'object':
             ob = self._pick_object(pos)
             if ob is not None:
                 self.delete_object(ob[0])
+            return
+        if self.tool == 'edit':
+            ob = self._pick_object(pos)
+            self._select(ob[0] if ob is not None else None)
             return
         hit = self._pick(pos)
         if not hit:
@@ -496,10 +558,91 @@ class WorldView(GLView):
                 self.store.set(*c, 0)
                 changes.append((*c, COLLISION, 0))
         self.deleted[key] = key
+        if key == self.sel:
+            self._select(None)
         self._upload_objects()
         self._push(('obj', key, changes))
         self.message.emit('지움: ' + self._object_text(ob))
         self.update()
+
+    # ------------------------------------------------------------------ editing placed objects ('edit' tool)
+    def _select(self, key):
+        self.sel = key
+        self._emit_selection()
+        self.update()
+
+    def selection_info(self):
+        """What the page shows about the picked object: text, is it a product, can it switch, is it on."""
+        ob = self._live(self.sel)
+        if ob is None:
+            return None
+        key, kind, t = ob[0], ob[1], ob[2]
+        sw = kind == brick.OBJ_PRODUCT and self.switchable(t)
+        return {'text': self._object_text(ob), 'product': kind == brick.OBJ_PRODUCT, 'switchable': sw,
+                'on': sw and self.is_on(key), 'rot': ob[6]}
+
+    def _emit_selection(self):
+        self.selection_changed.emit(self.selection_info())
+
+    def _need_selection(self):
+        ob = self._live(self.sel)
+        if ob is None:
+            self.message.emit('먼저 "✋ 설치물 편집" 도구로 설치물을 클릭해 고르세요')
+        return ob
+
+    def rotate_object(self, steps: int = 1) -> bool:
+        """Turn the picked product 90 degrees x steps about its anchor (as the game's R key), moving its
+        collision bricks; one undo step.  The object stays (a container keeps its items)."""
+        ob = self._need_selection()
+        if ob is None:
+            return False
+        key, new = ob[0], (ob[6] + steps) & 3
+        ok, why, clear, fill = rotate_check(self.doc, ob, new, self.store.get, self._loaded, list(self.live_objects()))
+        if not ok:
+            self.message.emit(why)
+            return False
+        changes = []
+        for c in clear:
+            if self.store.get(*c) == COLLISION:
+                self.store.set(*c, 0)
+                changes.append((*c, COLLISION, 0))
+        for c in fill:
+            old = self.store.set(*c, COLLISION)
+            if old >= 0 and old != COLLISION:
+                changes.append((*c, old, COLLISION))
+        prev = self.rots.get(key)
+        self.rots[key] = new
+        self._upload_objects()
+        self._push(('rot', key, prev, new, changes))
+        self.message.emit(f'돌림: {self.product_name(ob[2])} {ob[6] * 90}° → {new * 90}°')
+        self._emit_selection()
+        self.update()
+        return True
+
+    def toggle_object(self) -> bool:
+        """Switch the picked lamp (a switchable product) on or off; one undo step."""
+        ob = self._need_selection()
+        if ob is None:
+            return False
+        key, kind, t = ob[0], ob[1], ob[2]
+        if kind != brick.OBJ_PRODUCT or not self.switchable(t):
+            self.message.emit('켜고 끌 수 있는 설치물(조명 등)이 아닙니다')
+            return False
+        new = self.state_of(key) ^ brick.STATE_ON
+        prev = self.states.get(key)
+        self.states[key] = new
+        self._upload_objects()
+        self._push(('state', key, prev, new))
+        self.message.emit(('켬: ' if new & brick.STATE_ON else '끔: ') + self.product_name(t))
+        self._emit_selection()
+        return True
+
+    def delete_selected(self) -> bool:
+        ob = self._need_selection()
+        if ob is None:
+            return False
+        self.delete_object(ob[0])
+        return True
 
     def _push(self, op):
         self.undo_stack.append(op)
@@ -531,6 +674,17 @@ class WorldView(GLView):
             for x, y, z, o, n in op[3]:
                 self.store.set(x, y, z, o if back else n)
             self._upload_objects()
+        elif kind in ('rot', 'state'):         # (kind, key, previous dict entry or None, new[, brick changes])
+            d = self.rots if kind == 'rot' else self.states
+            v = op[2] if back else op[3]
+            if v is None:
+                d.pop(op[1], None)
+            else:
+                d[op[1]] = v
+            for x, y, z, o, n in (op[4] if kind == 'rot' else ()):
+                self.store.set(x, y, z, o if back else n)
+            self._upload_objects()
+            self._emit_selection()
         self.update()
 
     def undo(self):
@@ -553,10 +707,14 @@ class WorldView(GLView):
         return bool(self.store and self.undo_stack)
 
     def object_edits(self):
-        """(deleted (rx, rz, index) of document objects, added (type, x, y, z, rot)) for saving."""
+        """For saving: deleted (rx, rz, index) of document objects, added (type, x, y, z, rot, state),
+        and {(rx, rz, index): state} / {(rx, rz, index): rot} changed on document objects."""
         deleted = [k for k in self.deleted if k[0] != 'new']
-        added = [info for k, info in self.added.items() if k not in self.deleted]
-        return deleted, added
+        added = [(t, x, y, z, self.rots.get(k, r), self.state_of(k))
+                 for k, (t, x, y, z, r) in self.added.items() if k not in self.deleted]
+        states = {k: v for k, v in self.states.items() if k[0] != 'new' and k not in self.deleted}
+        rots = {k: v for k, v in self.rots.items() if k[0] != 'new' and k not in self.deleted}
+        return deleted, added, states, rots
 
     def mark_saved(self):
         """After a save the document holds the edits: object indices changed, so take the objects
@@ -565,6 +723,9 @@ class WorldView(GLView):
             self.store.modified.clear()
         self.deleted.clear()
         self.added.clear()
+        self.states.clear()
+        self.rots.clear()
+        self._select(None)                      # object keys are indices into the file: they changed
         self.start_changed = False
         if self.doc:
             self.objects = self.doc.objects()

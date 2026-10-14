@@ -427,7 +427,8 @@ def world_find(ctx, session, bricks, box, limit):
 
 
 @tool('world_objects', 'world',
-      'Furniture (products) and trees: id (for world_delete_objects / world_switch), type, name, anchor position, '
+      'Furniture (products) and trees: id (for world_delete_objects / world_switch / world_rotate), type, name, '
+      'anchor position, '
       'rotation, footprint box, and on (true/false) for lamps and other switchable products. Filter by area/box, '
       'kind, product id.',
       session=SESSION, box=BOX(default=None), kind=STR('Only this kind.', None, enum=('product', 'tree')),
@@ -942,6 +943,54 @@ def world_switch(ctx, session, ids, box, product, on):
                 already += 1
         return {'on': on, 'switched': switched, 'already': already, 'skipped': skipped}
     return _edit(s, f'switch {len(lamps)} {"on" if on else "off"}', run)
+
+
+@tool('world_rotate', 'world',
+      'Turn placed furniture about its anchor cell, like the game\'s R key: by id (from world_objects) or every '
+      'product in a box (optionally only one product id). rot = the new rotation 0-3, or turn = 90-degree steps '
+      'from the current one (default 1). The collision cells move with it; the turned footprint must be free '
+      '(blocked ones are listed in "failed"). The object itself stays (a container keeps its items, a lamp its '
+      'on/off). Wall lamps hang on the wall at +z for rot 0, +x rot 1, -z rot 2, -x rot 3. One undo step.',
+      session=SESSION, ids=ARR('Object ids, e.g. ["o:32:31:0", "n:3"].', {'type': 'string'}, None),
+      box=BOX(default=None), product=INT('With box: only this product id.', None),
+      rot=INT('New rotation 0-3 (instead of turn).', None),
+      turn=INT('90-degree steps from the current rotation (used when rot is not given).', 1))
+def world_rotate(ctx, session, ids, box, product, rot, turn):
+    s = _sess(ctx, session)
+    if rot is not None and not 0 <= rot <= 3:
+        raise StudioError('rot은 0~3입니다 (90° 단위)')
+    keys = [parse_object_id(i) for i in ids or []]
+    if box:                                      # in a box only products (ids report trees)
+        keys += [ob[0] for ob in s.objects_in(*_box(s, box)) if ob[1] == brick.OBJ_PRODUCT
+                 and (product is None or ob[2] == product)]
+    if not ids and not box:
+        raise StudioError('돌릴 설치물을 ids 또는 box로 주세요')
+    obs = []
+    for k in dict.fromkeys(keys):
+        ob = s.find_object(k)
+        if ob is None:
+            raise StudioError(f'없는 오브젝트입니다: {object_id(k)}')
+        obs.append(ob)
+    if not obs:
+        raise StudioError('그 범위에 돌릴 설치물이 없습니다 (world_objects로 확인)')
+
+    def run():
+        turned, failed, already = [], [], 0
+        for ob in obs:
+            new = rot if rot is not None else (ob[6] + turn) & 3
+            row = {'id': object_id(ob[0]), 'type': ob[2], 'pos': list(ob[3:6]), 'rot': new}
+            if ob[1] != brick.OBJ_PRODUCT:
+                failed.append({**row, 'why': 'a tree, not a product'})
+                continue
+            try:
+                if s.rotate_object(ob[0], new):
+                    turned.append({**row, 'from': ob[6]})
+                else:
+                    already += 1
+            except StudioError as ex:
+                failed.append({**row, 'why': str(ex)})
+        return {'turned': turned, 'already': already, 'failed': failed}
+    return _edit(s, f'rotate {len(obs)}', run)
 
 
 @tool('world_set_start', 'world', 'Move the spawn point (worlds). y defaults to standing on the ground there.',

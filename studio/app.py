@@ -49,6 +49,7 @@ def main(argv=None):
         print(f'selftest {"OK" if gl else "FAILED"} (OpenGL: {gl})', flush=True)
         return 0 if gl else 1
     win.show()
+    win.updater.start()
     win.open_page(st.settings.get('last_page') or 'resources')
     if not st.game:
         QTimer.singleShot(300, win.require_game)

@@ -198,10 +198,12 @@ class WorldService:
             self.sessions[path] = (sig, doc)
         return doc
 
-    def _apply_edits(self, doc: WorldDoc, regions, deleted_objects, start_pos, added_objects=(), states=None):
+    def _apply_edits(self, doc: WorldDoc, regions, deleted_objects, start_pos, added_objects=(), states=None,
+                     rots=None):
         """added_objects: (type, x, y, z, rot[, state]) - without a state a lamp is placed on
-        (brick.placed_state); states: {(rx, rz, index): state} for objects already in the file."""
-        # check new objects and state changes before changing anything
+        (brick.placed_state); states / rots: {(rx, rz, index): state byte / rotation 0-3} for objects
+        already in the file (turned objects keep everything else, e.g. a container's items)."""
+        # check new objects, state and rotation changes before changing anything
         new_objs = []
         for type_id, x, y, z, rot, *state in added_objects:
             if not doc.is_world:
@@ -222,6 +224,12 @@ class WorldService:
                 raise StudioError(f'상태를 바꿀 오브젝트 o:{rx}:{rz}:{j}이(가) 없거나 해석되지 않은 영역입니다')
             if not 0 <= int(v) <= 255:
                 raise StudioError(f'오브젝트 상태는 0~255입니다: {v}')
+        for (rx, rz, j), v in (rots or {}).items():
+            objs = doc.obj.region(rx, rz).objects if doc.is_world else None
+            if objs is None or not 0 <= j < len(objs):
+                raise StudioError(f'돌릴 오브젝트 o:{rx}:{rz}:{j}이(가) 없거나 해석되지 않은 영역입니다')
+            if objs[j].kind != brick.OBJ_PRODUCT:
+                raise StudioError(f'o:{rx}:{rz}:{j}은(는) 설치물이 아니라 돌릴 수 없습니다')
         for (rx, rz), arr in regions.items():
             col = doc.column(rx, rz)
             raw = np.ascontiguousarray(arr, dtype=np.uint8).tobytes()
@@ -235,6 +243,8 @@ class WorldService:
         if doc.is_world:
             for (rx, rz, j), v in (states or {}).items():      # before the deletions: indices of the file
                 doc.obj.region(rx, rz).objects[j].state = int(v)
+            for (rx, rz, j), v in (rots or {}).items():
+                doc.obj.region(rx, rz).objects[j].rot = int(v) & 3
             for rx, rz, j in sorted(deleted_objects, key=lambda t: -t[2]):
                 r = doc.obj.region(rx, rz)
                 if r.objects is None:
@@ -248,13 +258,13 @@ class WorldService:
 
     def save(self, doc: WorldDoc, regions: dict[tuple[int, int], np.ndarray],
              deleted_objects: list[tuple[int, int, int]] = (), start_pos=None, added_objects=(),
-             states=None) -> int:
+             states=None, rots=None) -> int:
         """Save into the mod project (worlds and prefabs from the game packs)."""
         if doc.path:
             raise StudioError('게임 저장본은 "다른 이름으로 저장"으로 새 파일에 저장하세요')
         self.st.need_project()
         with self.lock:
-            self._apply_edits(doc, regions, deleted_objects, start_pos, added_objects, states)
+            self._apply_edits(doc, regions, deleted_objects, start_pos, added_objects, states, rots)
             data = doc.obj.to_bytes()
             self.st.write(doc.name, data)
             self.sessions[entry_key(doc.name)] = (self.mirror.signature(doc.name), doc)
@@ -262,7 +272,7 @@ class WorldService:
 
     def save_as(self, doc: WorldDoc, path: str, regions: dict[tuple[int, int], np.ndarray],
                 deleted_objects: list[tuple[int, int, int]] = (), start_pos=None, added_objects=(),
-                states=None) -> int:
+                states=None, rots=None) -> int:
         """Write the (edited) world to a new .bwr file.  The game's save folders are refused."""
         from . import savedworlds
         path = os.path.abspath(path)
@@ -273,7 +283,7 @@ class WorldService:
                 os.path.normcase(os.path.join(game, 'data')) + os.sep)):
             raise StudioError('게임 폴더의 저장본·팩 자리에는 저장하지 않습니다. 다른 폴더를 고르세요.')
         with self.lock:
-            self._apply_edits(doc, regions, deleted_objects, start_pos, added_objects, states)
+            self._apply_edits(doc, regions, deleted_objects, start_pos, added_objects, states, rots)
             data = doc.obj.to_bytes()
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path + '.tmp', 'wb') as f:

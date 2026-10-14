@@ -6,6 +6,7 @@ furniture rules below so a product placed by an agent and one placed with the mo
 * product_check     - can a product go at a cell: anchor inside a decoded region, every footprint
                       cell inside and empty (air), no other object anchored there
 * collision_to_clear - collision bricks (255) a deleted product leaves that no other product needs
+* rotate_check      - can a placed product turn about its anchor, and which collision bricks move
 
 Game coordinates: x and z horizontal, y up (0..height-1).  Region arrays are uint8[H, 16(z), 16(x)]
 (the file layout (y*16 + z)*16 + x).  Brick 0 = air, 1..254 = brick_table ids, 255 = invisible
@@ -57,6 +58,16 @@ def product_check(doc: WorldDoc, product_id: int, cell, rot: int, get, loaded, l
     return True, '', cells
 
 
+def _other_cells(doc: WorldDoc, ob, live_objects) -> set:
+    """Footprint cells of the live products near ob other than ob itself."""
+    key, x, z = ob[0], ob[3], ob[5]
+    others = set()
+    for o in live_objects:
+        if o[0] != key and o[1] == brick.OBJ_PRODUCT and abs(o[3] - x) < 24 and abs(o[5] - z) < 24:
+            others.update((o[3] + dx, o[4] + dy, o[5] + dz) for dx, dy, dz in doc.footprint(o[2], o[6]))
+    return others
+
+
 def collision_to_clear(doc: WorldDoc, ob, live_objects) -> list[tuple[int, int, int]]:
     """Footprint cells of the live object ob that no other live product covers (the caller clears
     the ones that still hold collision bricks)."""
@@ -64,11 +75,33 @@ def collision_to_clear(doc: WorldDoc, ob, live_objects) -> list[tuple[int, int, 
     if kind != brick.OBJ_PRODUCT or not doc:
         return []
     mine = {(x + dx, y + dy, z + dz) for dx, dy, dz in doc.footprint(t, r)}
-    others = set()
-    for o in live_objects:
-        if o[0] != key and o[1] == brick.OBJ_PRODUCT and abs(o[3] - x) < 24 and abs(o[5] - z) < 24:
-            others.update((o[3] + dx, o[4] + dy, o[5] + dz) for dx, dy, dz in doc.footprint(o[2], o[6]))
-    return sorted(mine - others)
+    return sorted(mine - _other_cells(doc, ob, live_objects))
+
+
+def rotate_check(doc: WorldDoc, ob, rot: int, get, loaded, live_objects):
+    """(ok, reason, cells to clear, cells to fill) for turning the live product ob to rot about its
+    anchor, as the game's R key does.  The footprint for the new rotation must be inside, loaded and
+    free (air, or the product's own collision); collision cells of the old footprint that neither the
+    new one nor another product needs are cleared."""
+    key, kind, t, x, y, z, old = ob
+    if not doc or kind != brick.OBJ_PRODUCT:
+        return False, '나무는 돌릴 수 없습니다 (설치물만)', [], []
+    pt = doc.products.get(t)
+    if pt is None:
+        return False, '표에 없는 설치물입니다', [], []
+    rot &= 3
+    new = [(x + dx, y + dy, z + dz) for dx, dy, dz in brick.product_footprint(pt, rot)]
+    if rot == old:
+        return True, '', [], new
+    mine = {(x + dx, y + dy, z + dz) for dx, dy, dz in doc.footprint(t, old)}
+    others = _other_cells(doc, ob, live_objects)
+    for c in new:
+        if not loaded(*c):
+            return False, '돌린 자리가 범위 밖이거나 아직 불러오지 않은 곳입니다', [], new
+        v = get(*c)
+        if v != 0 and not (v == COLLISION and c in mine and c not in others):
+            return False, '돌린 자리가 막혀 있습니다 (블록이나 다른 설치물)', [], new
+    return True, '', sorted(mine - set(new) - others), new
 
 
 # --------------------------------------------------------------------------- object ids
@@ -123,6 +156,7 @@ class EditSession:
         self.added: dict[tuple, tuple] = {}         # ('new', n) -> (type, x, y, z, rot)
         self.deleted: set[tuple] = set()
         self.states: dict[tuple, int] = {}          # object key -> state byte set in this session
+        self.rots: dict[tuple, int] = {}            # object key -> rotation set in this session (turned)
         self._n = 0
         self._op: dict | None = None
         self.objects = doc.objects()
@@ -199,13 +233,14 @@ class EditSession:
 
     def live_objects(self):
         """(key, kind, type, x, y, z, rot) of the objects in the world now."""
+        rots = self.rots
         for ob in self.objects:
             key = (ob[0], ob[1], ob[2])
             if key not in self.deleted:
-                yield (key, *ob[3:9])
+                yield (key, *ob[3:8], rots.get(key, ob[8]))
         for key, (t, x, y, z, r) in self.added.items():
             if key not in self.deleted:
-                yield key, brick.OBJ_PRODUCT, t, x, y, z, r
+                yield key, brick.OBJ_PRODUCT, t, x, y, z, rots.get(key, r)
 
     def find_object(self, key):
         return next((o for o in self.live_objects() if o[0] == key), None)
@@ -218,13 +253,14 @@ class EditSession:
 
     # ------------------------------------------------------------------ recording
     def begin(self, label: str):
-        self._op = {'label': label, 'cells': [], 'added': [], 'deleted': [], 'start': None, 'states': []}
+        self._op = {'label': label, 'cells': [], 'added': [], 'deleted': [], 'start': None, 'states': [],
+                    'rots': []}
 
     def end(self) -> dict:
         """Close the operation: push it on the undo history when it changed anything."""
         op, self._op = self._op, None
         n = sum(len(c[1]) for c in op['cells'])
-        if n or op['added'] or op['deleted'] or op['start'] or op['states']:
+        if n or op['added'] or op['deleted'] or op['start'] or op['states'] or op['rots']:
             self.undo_stack.append(op)
             self.redo_stack.clear()
         return {'changed': n, 'placed': len(op['added']), 'deleted': len(op['deleted'])}
@@ -401,6 +437,29 @@ class EditSession:
         self.states[key] = state
         return True
 
+    def check_rotate(self, key, rot: int):
+        """(ok, reason, cells to clear, cells to fill) for turning the product key to rot."""
+        ob = self.find_object(key)
+        if ob is None:
+            raise StudioError(f'없는 오브젝트입니다: {object_id(key) if isinstance(key, tuple) else key}')
+        return rotate_check(self.doc, ob, rot, self.get, lambda x, y, z: self.inside(x, y, z),
+                            list(self.live_objects()))
+
+    def rotate_object(self, key, rot: int) -> bool:
+        """Turn a product about its anchor to rot 0-3 with its collision bricks (part of the open
+        operation); the object itself stays (a container keeps its items).  False = it already had it."""
+        ok, why, clear, fill = self.check_rotate(key, rot)
+        if not ok:
+            raise StudioError(f'{object_id(key)}을(를) {(rot & 3) * 90}°로 돌릴 수 없습니다: {why}')
+        rot &= 3
+        if self.find_object(key)[6] == rot:
+            return False
+        self.write_cells([(*c, AIR) for c in clear], replace=(COLLISION,), keep_collision=False)
+        self.write_cells([(*c, COLLISION) for c in fill], keep_collision=False)
+        self._op['rots'].append((key, self.rots.get(key), rot))
+        self.rots[key] = rot
+        return True
+
     def delete_object(self, key) -> tuple:
         """Delete a tree or product; a product's collision bricks no other product needs are cleared."""
         ob = self.find_object(key)
@@ -442,12 +501,14 @@ class EditSession:
                 self.deleted.discard(key)
             else:
                 self.deleted.add(key)
-        for key, old, new in reversed(op['states']) if back else op['states']:
-            v = old if back else new
-            if v is None:
-                self.states.pop(key, None)
-            else:
-                self.states[key] = v
+        for name in ('states', 'rots'):
+            d = getattr(self, name)
+            for key, old, new in reversed(op[name]) if back else op[name]:
+                v = old if back else new
+                if v is None:
+                    d.pop(key, None)
+                else:
+                    d[key] = v
         if op['start']:
             self.start_pos = list(op['start'][0] if back else op['start'][1])
             self.start_changed = True
@@ -482,18 +543,20 @@ class EditSession:
     def _edits(self):
         regions = {k: self.arrays[k] for k in self.modified if k in self.arrays}
         deleted = [k for k in self.deleted if k[0] != 'new']
-        added = [(*info, self.state_of(k)) for k, info in self.added.items() if k not in self.deleted]
+        added = [(t, x, y, z, self.rots.get(k, r), self.state_of(k))
+                 for k, (t, x, y, z, r) in self.added.items() if k not in self.deleted]
         states = {k: v for k, v in self.states.items() if k[0] != 'new' and k not in self.deleted}
-        return regions, deleted, (self.start_pos if self.start_changed else None), added, states
+        rots = {k: v for k, v in self.rots.items() if k[0] != 'new' and k not in self.deleted}
+        return regions, deleted, (self.start_pos if self.start_changed else None), added, states, rots
 
     def save(self, path: str | None = None) -> int:
         """Into the mod project (worlds/prefabs from the packs) or to a .bwr file (path, or the
         document's own file).  Game saves (Local\\, backup_map\\) are refused by WorldService."""
-        regions, deleted, start, added, states = self._edits()
+        regions, deleted, start, added, states, rots = self._edits()
         if path or self.doc.path:
-            n = self.svc.save_as(self.doc, path or self.doc.path, regions, deleted, start, added, states)
+            n = self.svc.save_as(self.doc, path or self.doc.path, regions, deleted, start, added, states, rots)
         else:
-            n = self.svc.save(self.doc, regions, deleted, start, added, states)
+            n = self.svc.save(self.doc, regions, deleted, start, added, states, rots)
         self.mark_saved()
         return n
 
@@ -503,6 +566,7 @@ class EditSession:
         self.deleted.clear()
         self.added.clear()
         self.states.clear()
+        self.rots.clear()
         self.start_changed = False
         self.objects = self.doc.objects()
         sp = self.doc.start_pos()

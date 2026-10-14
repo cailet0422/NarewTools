@@ -25,6 +25,7 @@ TOOLS = [
     ('box', '⬛ 상자', '두 번 클릭해 상자 영역을 채우거나 비웁니다'),
     ('prefab', '🏠 붙이기', '아래에서 고른 프리팹(.iaf)을 클릭한 곳에 붙입니다'),
     ('product', '🪑 설치물', '오른쪽 "설치물" 탭에서 고른 가구를 클릭한 곳에 놓습니다 · R: 90° 돌리기 (월드만)'),
+    ('edit', '✋ 설치물 편집', '놓인 설치물을 클릭해 고른 뒤 R: 90° 돌리기, T: 조명 켜기/끄기, Delete: 지우기 (월드만)'),
     ('start', '🚩 시작 위치', '캐릭터가 처음 서는 위치 (월드만)'),
     ('object', '🌳 오브젝트 삭제', '나무·설치물 표시를 클릭해 지웁니다 (월드만)'),
 ]
@@ -65,6 +66,7 @@ class WorldPage(QWidget):
         self.view.picked.connect(self._picked)
         self.view.message.connect(lambda m: toast(m))
         self.view.camera_moved.connect(self._move_dot)
+        self.view.selection_changed.connect(self._selection_changed)
         self.title = label('맵을 고르세요', title=True)
         self.undo_btn = button('↶ 되돌리기', self.view.undo, tip='Ctrl+Z')
         self.redo_btn = button('↷ 다시', self.view.redo, tip='Ctrl+Y')
@@ -143,9 +145,21 @@ class WorldPage(QWidget):
         self.prod_list = QListWidget()
         self.prod_list.itemClicked.connect(lambda it: self._select_product(it.data(Qt.UserRole)))
         self.prod_lbl = label('선택: -', muted=True, wrap=True)
+        # a placed object picked with the 'edit' tool
+        self.obj_lbl = label('"✋ 설치물 편집" 도구로 놓인 설치물을 클릭하면 돌리거나 켜고 끌 수 있습니다', muted=True, wrap=True)
+        self.obj_rot_btn = button('↻ 돌리기 (R)', lambda: self.view.rotate_object(),
+                                  tip='고른 설치물을 놓인 칸을 중심으로 90° 돌립니다 (충돌 칸도 함께)')
+        self.obj_switch_btn = button('💡 켜기/끄기 (T)', lambda: self.view.toggle_object(),
+                                     tip='조명처럼 켜고 끄는 설치물만. 꺼진 조명은 게임에서 빛나지 않습니다')
+        self.obj_del_btn = button('🗑 지우기 (Del)', lambda: self.view.delete_selected(), danger=True)
+        self._selection_changed(None)
         prod_tab = QWidget()
         pl = QVBoxLayout(prod_tab)
         pl.setContentsMargins(6, 6, 6, 6)
+        pl.addWidget(label('놓인 설치물', title=True))
+        pl.addWidget(self.obj_lbl)
+        pl.addWidget(hbox(self.obj_rot_btn, self.obj_switch_btn, self.obj_del_btn, 'stretch'))
+        pl.addWidget(label('새로 놓기', title=True))
         pl.addWidget(self.prod_lbl)
         pl.addWidget(hbox(button('↻ 돌리기 (R)', self.view.rotate_product), 'stretch'))
         pl.addWidget(self.prod_search)
@@ -281,6 +295,17 @@ class WorldPage(QWidget):
                 b.setChecked(True)
         self.view.setFocus()
 
+    def _selection_changed(self, info):
+        if info is None:
+            self.obj_lbl.setText('"✋ 설치물 편집" 도구로 놓인 설치물을 클릭하면 돌리거나 켜고 끌 수 있습니다')
+        else:
+            self.obj_lbl.setText('고름: ' + info['text'])
+        self.obj_rot_btn.setEnabled(bool(info and info['product']))
+        self.obj_switch_btn.setEnabled(bool(info and info['switchable']))
+        self.obj_switch_btn.setText('💡 끄기 (T)' if info and info['on'] else '💡 켜기 (T)' if info and info['switchable']
+                                    else '💡 켜기/끄기 (T)')
+        self.obj_del_btn.setEnabled(info is not None)
+
     def _picked(self, bid):
         self._select_brick(bid)
         toast('선택: ' + self.view.lut.label(bid))
@@ -372,12 +397,14 @@ class WorldPage(QWidget):
         self.view.jump_to(p.x() / self.mm_scale, p.y() / self.mm_scale)
 
     def set_tool(self, tool):
-        if tool in ('start', 'object', 'product') and self.doc and not self.doc.is_world:
+        if tool in ('start', 'object', 'product', 'edit') and self.doc and not self.doc.is_world:
             toast('월드(.bwr)에서만 쓸 수 있습니다')
-        if tool == 'product':
+        if tool in ('product', 'edit'):
             self.right_tabs.setCurrentIndex(1)
-            if self.view.product is None:
-                toast('오른쪽 "설치물" 탭에서 놓을 가구를 고르세요')
+        if tool == 'product' and self.view.product is None:
+            toast('오른쪽 "설치물" 탭에서 놓을 가구를 고르세요')
+        if tool == 'edit':
+            toast('놓인 설치물을 클릭해 고르세요 · R 돌리기, T 켜기/끄기, Delete 지우기')
         self.view.set_tool(tool)
         self.view.setFocus()
         if tool == 'prefab' and not self.view.prefab:
@@ -417,8 +444,9 @@ class WorldPage(QWidget):
                 toast('바뀐 내용이 없습니다')
                 return
             regions = {k: v.store.regions[k] for k in v.store.modified if k in v.store.regions}
-            deleted, added = v.object_edits()
-            n = self.svc.save_as(self.doc, path, regions, deleted, v.start_pos if v.start_changed else None, added)
+            deleted, added, states, rots = v.object_edits()
+            n = self.svc.save_as(self.doc, path, regions, deleted, v.start_pos if v.start_changed else None, added,
+                                 states, rots)
             v.mark_saved()
             toast(f'저장했습니다: {path} ({n:,} 바이트)')
             self.load_saved()
@@ -430,8 +458,8 @@ class WorldPage(QWidget):
             toast('바뀐 내용이 없습니다')
             return
         regions = {k: v.store.regions[k] for k in v.store.modified if k in v.store.regions}
-        deleted, added = v.object_edits()
-        n = self.svc.save(self.doc, regions, deleted, v.start_pos if v.start_changed else None, added)
+        deleted, added, states, rots = v.object_edits()
+        n = self.svc.save(self.doc, regions, deleted, v.start_pos if v.start_changed else None, added, states, rots)
         v.mark_saved()
         toast(f'저장했습니다 (영역 {len(regions)}개, {n:,} 바이트)')
         self.mw.refresh_header()

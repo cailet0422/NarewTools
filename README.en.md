@@ -46,7 +46,7 @@ and worlds (maps). A mod manager puts them into the game and can always restore 
 |---|---|
 | **NarewStudio.exe** | Makes mods. It only **reads** the game files; changed files and added entries are saved into a mod project |
 | **NarewModManager.exe** | Enables/disables and orders mods, applies them to the game, restores the originals |
-| **NarewAgent.exe** | Bridge for AI agents (console). Exposes NarewStudio as 109 tools over MCP and a command line |
+| **NarewAgent.exe** | Bridge for AI agents (console). Exposes NarewStudio as 110 tools over MCP and a command line |
 | `narew` (Python) | Command line tools: unpack/build packs, models ↔ glTF, brick (voxel) file conversion (run from source) |
 
 ## Features
@@ -104,7 +104,8 @@ NarewTools\
 
 - The three exes share the `_internal` folder, so always move **the whole `NarewTools` folder**.
 - The programs are not code-signed, so Windows SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
-- To update, replace the folder. Settings, mod projects and installed mods are stored in your user folders and stay ([File locations](#file-locations)).
+- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.2.0`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
+- Up to 2.1.0, update by replacing the folder. Settings, mod projects and installed mods are stored in your user folders and stay ([File locations](#file-locations)).
 
 ## First-time setup
 
@@ -205,9 +206,11 @@ Edits game maps (`.bwr`) and building prefabs (`.iaf`) in 3D.
 | Rotate / pan / zoom | left drag / middle drag / wheel |
 | Undo / redo / save | Ctrl+Z / Ctrl+Y / Ctrl+S |
 | Rotate furniture 90° | R |
+| Turn placed furniture / switch a lamp / delete ("✋ 설치물 편집") | R / T / Delete |
 
-- Tools: view, place, erase, paint, eyedropper, fill/hollow box, paste prefab, **place furniture**, start position, delete object.
-- **Place furniture**: choose a piece in the "설치물" (Furniture) tab on the right and click. Green = can be placed, red = blocked. The hidden collision cells under furniture are filled in automatically.
+- Tools: view, place, erase, paint, eyedropper, fill/hollow box, paste prefab, **place furniture**, **edit furniture**, start position, delete object.
+- **Place furniture**: choose a piece in the "설치물" (Furniture) tab on the right and click. Green = can be placed, red = blocked. The hidden collision cells under furniture are filled in automatically. Lamps are placed switched on.
+- **Edit furniture** ("✋ 설치물 편집"): click a placed piece to pick it (light-blue box); **R** turns it 90° about the cell it stands on (its collision cells move too, a chest keeps its items), **T** switches a lamp on/off, **Delete** removes it. Lamp markers: yellow = on, grey = off. A lamp that is off does not shine in game.
 - Large maps only load around the camera (adjustable view distance). Click the minimap to jump.
 
 **Editing your own world** (single-player world)
@@ -290,7 +293,7 @@ A `merge\` patch (UTF-8). An entry with the same key is replaced whole; otherwis
 
 ## Connecting AI agents
 
-Every NarewStudio feature is available as **109 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
+Every NarewStudio feature is available as **110 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
 Agents check their work with ASCII maps and pictures (top-down map, 3D, GUI, model, waveform).
 
 | 3D picture (`world_render` view=iso) | Floor plan from above (view=top) |
@@ -447,7 +450,7 @@ pip install pyinstaller
 python tools\build_exe.py
 ```
 
-The three exes are built into `dist\NarewTools\`; after each passes its self test (`--selftest`, the agent an MCP handshake) `dist\NarewTools-<version>.zip` is made.
+The three exes are built into `dist\NarewTools\`; after each passes its self test (`--selftest`, the agent an MCP handshake) `dist\NarewTools-<version>.zip` and its `.zip.sha256` are made. The automatic update only picks up a GitHub release (tag `v<version>`) that has **both files** as assets. The build check also lets the built NarewAgent put a fake update into a scratch folder.
 If `dist\NarewTools` is in use, build elsewhere with `--dist <folder>`.
 
 **Tests** — the real game folder is only read; apply tests run on a fake game folder made from copies of some packs.
@@ -472,6 +475,7 @@ For the other tests (`tests\test_*.py`, `smoke_*.py`) see the arguments at the t
 | Mod manager (installed mods, settings, log) | `%LOCALAPPDATA%\NarewModManager\` (`mods\`, `settings.json`, `deployed.json`, `log.txt`) |
 | Original backups made when applying mods | `<game folder>\data\<pack>.pack.orig`, `<game folder>\<file>.orig` |
 | AI agent ↔ window link | `%APPDATA%\NarewStudio\agent\` (no network or ports) |
+| Automatic update (settings · downloads, backup, log) | `%APPDATA%\NarewTools\update.json` · `%LOCALAPPDATA%\NarewTools\update\` |
 
 ## Troubleshooting
 
@@ -522,7 +526,7 @@ AGENTS.md    instructions for AI agents; .mcp.json registers the MCP server for 
 | [06 Program manual](docs/06-studio-modmanager.md) | NarewStudio and NarewModManager in detail |
 | [07 New content](docs/07-new-content.md) | Engine limits, table merge rules |
 | [08 GUI layout](docs/08-gui-layout.md) | Editing `Gui\*.xml` |
-| [09 AI agents](docs/09-ai-agents.md) | 109 tools, connection, safety |
+| [09 AI agents](docs/09-ai-agents.md) | 110 tools, connection, safety |
 
 The `re/` analysis output mentioned in the docs (game binary dumps, decompiler output) is not included in this repository.
 

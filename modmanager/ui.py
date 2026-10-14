@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QFrame, QGridLayout
 
 from narew import xmlmerge
 from narew.modfmt import ModError, entry_key
+from narew.version import VERSION
 from studio.core import StudioError
 from studio.ui.common import (DARK, button, confirm, error, fmt_size, guarded, hbox, info, label, open_file,
                               open_in_shell, pick_folder, run_task, scaled)
@@ -63,6 +64,9 @@ class ModWindow(QMainWindow):
         hl.addWidget(button('열기', lambda: open_in_shell(self.mgr.game_root or '')), 0, 4)
         hl.addWidget(label('적용 방식', faint=True), 0, 5)
         hl.addWidget(self.mode, 0, 6)
+        from studio.ui.updates import Updater    # GitHub releases: check, download, put in on close
+        self.updater = Updater(self, 'NarewModManager.exe')
+        hl.addWidget(button(f'v{VERSION}', self.updater.check_now, tip='업데이트 확인'), 0, 7)
         hl.setColumnStretch(2, 1)
 
         # ---- status banner

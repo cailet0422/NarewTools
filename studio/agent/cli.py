@@ -50,6 +50,10 @@ def parse_args(items: list[str]) -> dict:
 
 
 def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ['--apply-update'] and len(argv) == 2:     # the updater, run from the new version's folder
+        from ..selfupdate import apply_job
+        return apply_job(argv[1])
     for s in (sys.stdout, sys.stderr):
         try:
             s.reconfigure(encoding='utf-8')

@@ -3,13 +3,17 @@ AI agents), sharing one Qt runtime, with PyInstaller.
 
     python tools/build_exe.py            -> dist/NarewTools/{NarewStudio,NarewModManager,NarewAgent}.exe
                                             dist/NarewTools-<version>.zip (to share)
+                                            dist/NarewTools-<version>.zip.sha256 (for the self-update)
 
 All programs go into one folder so the large Qt / OpenGL libraries are stored once.  After the
-build each exe runs its self test (Studio also starts OpenGL; the agent answers an MCP handshake)
-before the zip is made.
+build each exe runs its self test (Studio also starts OpenGL; the agent answers an MCP handshake and
+puts a fake update into a scratch folder) before the zip is made.  A GitHub release gets both the zip
+and the .sha256 file as assets (tag v<version>): the programs' self-update looks for exactly those names.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -19,10 +23,12 @@ import zipfile
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from narew.version import VERSION  # noqa: E402
+
 BUILD = os.path.join(ROOT, 'build')
 DIST = os.path.join(ROOT, 'dist')
 NAME = 'NarewTools'
-VERSION = '2.1.0'
 
 APPS = [
     # exe name, entry module (with main(argv)), icon letter, colour, console
@@ -108,6 +114,7 @@ def selftest(folder: str):
             print(f'{name}: mcp {"OK" if ok else "FAILED"}')
             if not ok:
                 raise SystemExit(f'{name} selftest failed:\n{r.stdout[-2000:]!r}\n{r.stderr[-2000:]!r}')
+            update_selftest(exe, env, scratch)
             continue
         # windowed exes have no console: the log file under the scratch APPDATA gets the output
         r = subprocess.run([exe, '--selftest'], env=env, timeout=180)
@@ -117,6 +124,44 @@ def selftest(folder: str):
         print(f'{name}: exit {r.returncode}', text.strip().splitlines()[-1:] if text else '')
         if r.returncode != 0:
             raise SystemExit(f'{name} selftest failed:\n{text}')
+
+
+def update_selftest(agent: str, env: dict, scratch: str):
+    """The built agent puts a fake update into a scratch 'install' folder, as the self-update runs it
+    (NarewAgent.exe --apply-update <job.json>): files replaced, the old ones backed up."""
+    inst, new = os.path.join(scratch, 'install'), os.path.join(scratch, 'staged')
+    for d, text in ((inst, 'old'), (new, 'new')):
+        os.makedirs(os.path.join(d, 'sub'))
+        for p in ('NarewStudio.exe', 'NarewModManager.exe', 'NarewAgent.exe', os.path.join('sub', 'f.txt')):
+            with open(os.path.join(d, p), 'w') as f:
+                f.write(text)
+    job = {'version': '0.0.1', 'old_version': '0.0.0', 'staged': new, 'install': inst, 'pid': 0, 'restart': None,
+           'backup': os.path.join(scratch, 'backup'), 'log': os.path.join(scratch, 'update.log')}
+    path = os.path.join(scratch, 'job.json')
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(job, f)
+    r = subprocess.run([agent, '--apply-update', path], env=env, capture_output=True, timeout=300)
+
+    def read(*p):
+        with open(os.path.join(*p)) as f:
+            return f.read()
+    ok = r.returncode == 0 and read(inst, 'sub', 'f.txt') == 'new' and read(scratch, 'backup', 'sub', 'f.txt') == 'old'
+    print(f'{os.path.basename(agent)}: apply-update {"OK" if ok else "FAILED"}')
+    if not ok:
+        log = read(scratch, 'update.log') if os.path.isfile(os.path.join(scratch, 'update.log')) else ''
+        raise SystemExit(f'update selftest failed (exit {r.returncode}):\n{log}\n{r.stderr[-2000:]!r}')
+
+
+def write_sha256(path: str) -> str:
+    """<zip>.sha256 = "<hex>  <name>" (the release asset the self-update checks the download with)."""
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    out = path + '.sha256'
+    with open(out, 'w', encoding='ascii', newline='\n') as f:
+        f.write(f'{h.hexdigest()}  {os.path.basename(path)}\n')
+    return out
 
 
 def make_zip(folder: str) -> str:
@@ -144,7 +189,9 @@ def main():
     selftest(folder)
     size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(folder) for f in fs)
     print(f'folder: {folder} ({size / 2 ** 20:.0f} MB)')
-    print('zip:', make_zip(folder))
+    z = make_zip(folder)
+    print('zip:', z)
+    print('sha256:', write_sha256(z))
 
 
 if __name__ == '__main__':

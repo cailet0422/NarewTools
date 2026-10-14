@@ -239,6 +239,72 @@ check('switched off: saved without 0x10', LA in ls2 and not ls2[LA] & brick.STAT
 check('switched on: saved with 0x10', ls2.get(LB, 0) & brick.STATE_ON, ls2)
 check('pasted lamps were undone', len(ls2) == len(ls1), (ls1, ls2))
 
+# turning placed furniture (world_rotate): the collision moves with it, the object itself stays
+PF = Y + 60
+must('world_fill', session=W, box=[X0, PF, Z0, X0 + 8, PF, Z0 + 6], brick=WOOD)
+BA = (X0 + 4, PF + 1, Z0 + 3)
+bed = must('world_place', session=W, product=BED, x=BA[0], z=BA[2], y=BA[1]).get('id')
+BED_PT = ctx.world.product_table().get(BED)
+
+
+def fp(rot, a=BA):
+    return {(a[0] + dx, a[1] + dy, a[2] + dz) for dx, dy, dz in brick.product_footprint(BED_PT, rot)}
+
+
+check('the bed footprint changes when turned', fp(0) != fp(1))
+r = must('world_rotate', session=W, ids=[bed])
+check('turn 90° by default', [t.get('rot') for t in r.get('turned', [])] == [1], r)
+check('turned: new collision written, old cleared', all(s.get(*c) == brick.COLLISION for c in fp(1))
+      and all(s.get(*c) == 0 for c in fp(0) - fp(1)))
+rows = must('world_objects', session=W, box=[*BA, *BA])['objects']
+check('world_objects shows the new rotation', rows and rows[0]['rot'] == 1, rows)
+r = must('world_rotate', session=W, ids=[bed], rot=1)
+check('same rotation: nothing to do', r.get('already') == 1 and not r.get('turned'), r)
+blk = sorted(fp(2) - fp(1))[0]
+must('world_set_blocks', session=W, blocks=[[*blk, STONE]])
+r = must('world_rotate', session=W, ids=[bed])
+check('blocked turn reported, nothing changed', len(r.get('failed', [])) == 1 and not r.get('turned')
+      and all(s.get(*c) == brick.COLLISION for c in fp(1)), r)
+must('world_undo', session=W)                    # the blocked turn recorded nothing: this undoes the stone
+check('blocking stone undone', s.get(*blk) == 0)
+must('world_undo', session=W)                    # the turn
+check('undo turn: old collision back', all(s.get(*c) == brick.COLLISION for c in fp(0))
+      and all(s.get(*c) == 0 for c in fp(1) - fp(0)))
+must('world_redo', session=W)
+LR = (X0 + 7, PF + 1, Z0 + 5)
+lid = must('world_place', session=W, product=LAMP, x=LR[0], z=LR[2], y=LR[1], on=False).get('id')
+must('world_rotate', session=W, ids=[lid], rot=3)
+rows = must('world_objects', session=W, product=LAMP, box=[*LR, *LR])['objects']
+check('turned lamp keeps on/off', rows and rows[0]['rot'] == 3 and rows[0].get('on') is False, rows)
+r = must('world_rotate', session=W, box=[X0, PF + 1, Z0, X0 + 8, PF + 1, Z0 + 6], product=BED, rot=2)
+check('turn in a box (only one product id)', [t['id'] for t in r.get('turned', [])] == [bed], r)
+check('rot out of range refused', not T('world_rotate', session=W, ids=[bed], rot=4)[0])
+check('missing object refused', not T('world_rotate', session=W, ids=['o:999:999:0'])[0])
+must('world_save', session=W)
+
+
+def saved_objects():
+    w = brick.World.from_bytes(ctx.st.read('map\\64_0.bwr', 'base'), ctx.world.product_table(), strict=True)
+    return w, {(o.x, o.y, o.z): o for _, o in w.iter_objects()}
+
+
+w3, o3 = saved_objects()
+check('turned bed saved with rot 2', o3.get(BA) and o3[BA].type_id == BED and o3[BA].rot == 2)
+check('turned lamp saved with rot 3, still off', o3.get(LR) and o3[LR].rot == 3 and not o3[LR].state & brick.STATE_ON)
+check('collision of the turned bed saved', all(w3.get(*c) == brick.COLLISION for c in fp(2))
+      and all(w3.get(*c) == 0 for c in fp(0) - fp(2)))
+bed_o = must('world_objects', session=W, box=[*BA, *BA])['objects'][0]['id']
+check('after saving the bed is a file object', bed_o.startswith('o:'), bed_o)
+must('world_rotate', session=W, ids=[bed_o], rot=0)
+must('world_save', session=W)
+w4, o4 = saved_objects()
+b3, b4 = o3[BA], o4.get(BA)
+check('file object turned in place: rot 0, the rest kept', b4 and b4.rot == 0
+      and (b4.type_id, b4.state, b4.age, b4.hp, b4.owner, b4.extra) == (b3.type_id, b3.state, b3.age, b3.hp, b3.owner, b3.extra))
+check('file object turned: collision saved', all(w4.get(*c) == brick.COLLISION for c in fp(0))
+      and all(w4.get(*c) == 0 for c in fp(2) - fp(0)))
+check('object count unchanged by turning', len(o4) == len(o3))
+
 # prefab session + paste prefab
 d = must('world_open', name='Architecture\\building\\agent_house.iaf')
 P = d['session']

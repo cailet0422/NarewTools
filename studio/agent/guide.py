@@ -61,6 +61,8 @@ Edit (every call = one undo step; world_undo/world_redo)
 - furniture: products_list(placeable_only=true) -> world_place(product, x, z[, y, rot]) / world_place_many;
   y defaults to standing on the ground; the whole footprint must be air; world_delete_objects(ids|box)
 - lights: world_switch(ids|box, on=true|false); world_objects shows on=true/false for every lamp
+- turn placed furniture: world_rotate(ids|box, rot=0-3 | turn=steps) about its anchor; collision moves with it,
+  the object stays (container items, lamp on/off); blocked ones are listed in "failed"
 - world_set_start(x, z): spawn point
 
 Save

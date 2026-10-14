@@ -12,10 +12,12 @@ import json
 import sys
 import time
 
+from narew.version import VERSION
+
 from . import guide
 from .registry import TOOLS
 
-SERVER = {'name': 'narew-studio', 'title': 'NarewStudio (Islet Online modding)', 'version': '2.1.0'}
+SERVER = {'name': 'narew-studio', 'title': 'NarewStudio (Islet Online modding)', 'version': VERSION}
 PROTOCOLS = ('2025-06-18', '2025-03-26', '2024-11-05')
 MAX_INLINE = 1_500_000            # bytes of PNG sent inline; bigger pictures are scaled down for the message
 
