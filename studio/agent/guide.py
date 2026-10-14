@@ -41,6 +41,10 @@ Open
 - world_list (kind="save" for the user's own worlds: <game>\\Local\\<world>.bwr is the world they play in
   single player; Worlds\\*.bwr are copies)
 - world_open(name="map\\64_0.bwr") or world_open(path=...) -> session "w1". No args = what the window shows.
+- objects_unreadable_regions in world_open/world_info: some regions hold furniture the open game folder's
+  tables do not know (a save played with a mod) - their objects are not listed and world_clear cannot delete
+  them (they are saved back unchanged). Tell the user; open the save with the game folder it was played in
+  (the hint says which: set_game, or --game "<install>" --no-follow) before editing furniture there.
 
 Look before you build
 - world_info: size, start position (spawn) and the ground height there

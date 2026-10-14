@@ -34,6 +34,7 @@ class WorldDoc:
         else:
             self.width, self.depth, self.height = obj.width, obj.depth, obj.height
         self.rx, self.rz = self.width // brick.SIDE, self.depth // brick.SIDE
+        self._unreadable = None
 
     def column(self, rx: int, rz: int) -> brick.Column:
         if not (0 <= rx < self.rx and 0 <= rz < self.rz):
@@ -67,6 +68,15 @@ class WorldDoc:
     def objects_decoded(self, rx: int, rz: int) -> bool:
         """False when the region's object block could not be decoded (kept verbatim)."""
         return self.is_world and self.obj.region(rx, rz).objects is not None
+
+    def unreadable_regions(self) -> list[tuple[int, int]]:
+        """(rx, rz) of the regions whose object block could not be decoded with self.products - usually
+        furniture a mod added that these tables lack.  Their trees/furniture are not listed and cannot be
+        changed; the block is saved back as it was."""
+        if self._unreadable is None:
+            self._unreadable = [(r.rx, r.rz) for r in self.obj.regions if r.objects is None] \
+                if self.is_world else []
+        return self._unreadable
 
     def footprint(self, type_id: int, rot: int) -> list[tuple[int, int, int]]:
         pt = self.products.get(type_id)

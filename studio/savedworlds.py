@@ -69,10 +69,16 @@ def is_game_save(game_root: str | None, path: str) -> bool:
         pn = os.path.normcase(p)
         if any(pn.startswith(os.path.normcase(os.path.join(game_root, f)) + os.sep) for f, _ in SAVE_DIRS):
             return True
-    d = os.path.dirname(p)
+    return save_game_root(p) is not None
+
+
+def save_game_root(path: str) -> str | None:
+    """The Islet Online install whose Local\\ / backup_map\\ holds path (next to the client exe), or None."""
+    d = os.path.dirname(os.path.abspath(path))
     while os.path.basename(d) and os.path.basename(d).lower() not in {f.lower() for f, _ in SAVE_DIRS}:
         d = os.path.dirname(d) if os.path.dirname(d) != d else ''
-    return bool(d) and any(os.path.isfile(os.path.join(os.path.dirname(d), e)) for e in CLIENT_EXES)
+    root = os.path.dirname(d) if d else None
+    return root if root and any(os.path.isfile(os.path.join(root, e)) for e in CLIENT_EXES) else None
 
 
 def read_stable(path: str, tries: int = 8, wait: float = 0.5) -> bytes:

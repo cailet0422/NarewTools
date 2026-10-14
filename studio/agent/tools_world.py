@@ -10,7 +10,8 @@ from narew import brick
 from .. import pixelart, savedworlds
 from ..core import StudioError
 from ..svc_world import TREE_NAMES
-from ..worldedit import (AIR, COLLISION, EditSession, object_id, parse_object_id, rotate_array, rotate_point)
+from ..worldedit import (AIR, COLLISION, EditSession, object_id, parse_object_id, rotate_array, rotate_point,
+                         unreadable_objects)
 from . import live, render
 from .context import Clip
 from .registry import ARR, BOOL, BOX, INT, NUM, OBJ, POINT, Result, SESSION, STR, tool
@@ -127,6 +128,27 @@ def _doc_array(doc) -> np.ndarray:
     return arr
 
 
+def _unreadable(ctx, s: EditSession) -> dict | None:
+    """unreadable_objects of the session's world with how an agent opens it right."""
+    u = unreadable_objects(s.doc, ctx.st.game.root if ctx.st.game else None)
+    if u:
+        g = u.get('played_in') or '<설치 폴더>'
+        u['hint'] += (f' 에이전트: set_game(path="{g}") 뒤 world_open (창의 게임 폴더도 바뀝니다), 또는 '
+                      f'python -m studio.agent --game "{g}" --no-follow ...')
+    return u
+
+
+def _unreadable_box(s: EditSession, b, what: str) -> dict:
+    """{'objects_unreadable_regions': ...} when the box b touches regions whose objects were not read."""
+    regs = s.unreadable_in(b[0], b[2], b[3], b[5])
+    if not regs:
+        return {}
+    return {'objects_unreadable_regions': {
+        'count': len(regs), 'regions': [list(r) for r in regs[:6]],
+        'note': f'상자가 오브젝트를 읽지 못한 영역 {len(regs)}곳에 걸칩니다: {what} '
+                '(지금 게임 폴더의 표가 모르는 설치물 - world_info의 objects_unreadable_regions.hint 참고)'}}
+
+
 def summary(ctx, sid: str) -> dict:
     s = ctx.sessions[sid]
     d = s.doc
@@ -160,6 +182,9 @@ def summary(ctx, sid: str) -> dict:
             if lh:
                 g['existing_objects_on_this_ground'] = f'{lh[1]} objects {lh[2]} stand at brick y + {lh[0]}'
             out['ground_at_start'] = g
+        u = _unreadable(ctx, s)
+        if u:
+            out['objects_unreadable_regions'] = u
     return out
 
 
@@ -227,7 +252,9 @@ def world_new_prefab(ctx, name, width, height, depth):
     return world_open(ctx, n, None)
 
 
-@tool('world_info', 'world', 'Session summary: size, start position, object counts, unsaved edits, where save goes.',
+@tool('world_info', 'world',
+      'Session summary: size, start position, object counts, unsaved edits, where save goes; '
+      'objects_unreadable_regions when some furniture could not be read (tables of another game folder / mods).',
       session=SESSION)
 def world_info(ctx, session):
     _sess(ctx, session)
@@ -400,7 +427,8 @@ def world_stats(ctx, session, box):
             'bricks': sorted(({'id': int(a), 'name': render.brick_name(info, int(a)), 'count': int(n)}
                               for a, n in zip(v, c)), key=lambda r: -r['count']),
             'products': sum(1 for o in objs if o[1] == brick.OBJ_PRODUCT),
-            'trees': sum(1 for o in objs if o[1] == brick.OBJ_TREE)}
+            'trees': sum(1 for o in objs if o[1] == brick.OBJ_TREE),
+            **_unreadable_box(s, b, '그곳의 가구·나무는 개수에 없습니다')}
 
 
 @tool('world_find', 'world', 'Positions of given brick ids (in a box, or the whole map; max 500 listed).',
@@ -443,7 +471,8 @@ def world_objects(ctx, session, box, kind, product, limit):
         if product is not None and (ob[1] != brick.OBJ_PRODUCT or ob[2] != product):
             continue
         rows.append(ob)
-    return {'count': len(rows), 'objects': [_obj_row(s, o) for o in rows[:limit]]}
+    return {'count': len(rows), 'objects': [_obj_row(s, o) for o in rows[:limit]],
+            **_unreadable_box(s, b, '그곳의 가구·나무는 목록에 없습니다')}
 
 
 @tool('world_render', 'world',
@@ -532,7 +561,9 @@ def world_clear(ctx, session, box, delete_objects):
                 s.delete_object(ob[0])
                 n += 1
         s.fill(*b, AIR, 'solid', keep_collision=True)
-        return {'objects_deleted': n}
+        return {'objects_deleted': n, **_unreadable_box(
+            s, b, '블록은 비웠지만 그곳의 가구·나무는 지우지 못해 그대로 남습니다' if delete_objects
+            else '그곳의 가구·나무는 그대로입니다')}
     return _edit(s, 'clear', run)
 
 
@@ -720,7 +751,8 @@ def world_copy(ctx, session, box, with_objects):
                 prods.append((t, x - b[0], y - b[1], z - b[2], rot, s.state_of(key)))
     cid = ctx.new_clip(Clip(arr, prods, f'{s.doc.name} {list(b)}'))
     return {'clip': cid, 'size_xyz': ctx.clips[cid].size, 'products': len(prods),
-            'non_air': int(np.count_nonzero(arr))}
+            'non_air': int(np.count_nonzero(arr)),
+            **(_unreadable_box(s, b, '그곳의 가구는 복사되지 않았습니다') if with_objects else {})}
 
 
 @tool('world_paste', 'world',
@@ -943,22 +975,26 @@ def world_place_many(ctx, session, items, stop_on_error):
 def world_delete_objects(ctx, session, ids, box, kind, product):
     s = _sess(ctx, session)
     keys = [parse_object_id(i) for i in ids or []]
+    note = {}
     if box:
-        for ob in s.objects_in(*_box(s, box)):
+        b = _box(s, box)
+        note = _unreadable_box(s, b, '그곳의 가구·나무는 지우지 못해 그대로 남습니다')
+        for ob in s.objects_in(*b):
             if kind and (kind == 'product') != (ob[1] == brick.OBJ_PRODUCT):
                 continue
             if product is not None and ob[2] != product:
                 continue
             keys.append(ob[0])
     if not keys:
-        raise StudioError('지울 오브젝트가 없습니다 (ids 또는 box)')
+        raise StudioError('지울 오브젝트가 없습니다 (ids 또는 box)' + (
+            '. ' + note['objects_unreadable_regions']['note'] if note else ''))
 
     def run():
         gone = []
         for k in dict.fromkeys(keys):
             ob = s.delete_object(k)
             gone.append({'id': object_id(k), 'type': ob[2], 'pos': list(ob[3:6])})
-        return {'deleted_objects': gone}
+        return {'deleted_objects': gone, **note}
     return _edit(s, f'delete {len(keys)} objects', run)
 
 
@@ -1110,9 +1146,15 @@ def world_save(ctx, session, path):
     old = d.path or d.name
     n = s.save(path)
     ctx.notify([d.path or d.name] + ([old] if old != (d.path or d.name) else []))
-    return {'saved': d.path or d.name, 'bytes': n, 'into': 'file' if d.path else 'mod project',
-            'next': 'world_apply_to_game puts a saved copy of your own world into the game (asks first)'
-            if d.path and d.is_world else None}
+    out = {'saved': d.path or d.name, 'bytes': n, 'into': 'file' if d.path else 'mod project',
+           'next': 'world_apply_to_game puts a saved copy of your own world into the game (asks first)'
+           if d.path and d.is_world else None}
+    regs = d.unreadable_regions()
+    if regs:
+        out['objects_unreadable_regions'] = {
+            'count': len(regs), 'regions': [list(r) for r in regs[:6]],
+            'note': f'오브젝트를 읽지 못한 영역 {len(regs)}곳의 가구·나무는 읽은 그대로 저장했습니다 (바뀌지 않음)'}
+    return out
 
 
 # --------------------------------------------------------------------------- the game's own worlds

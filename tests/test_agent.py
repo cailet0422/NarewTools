@@ -372,6 +372,58 @@ r = must('world_restore_backup', backup=b[0]['dir'], confirm=True)
 with open(os.path.join(local, 'lj.bwr'), 'rb') as f:
     check('backup restored', f.read() == src)
 
+# a save played in another install with a mod: a region holds furniture this game folder's tables do not know,
+# so its object block cannot be split (kept verbatim) - the tools must say so instead of skipping it silently
+import dataclasses  # noqa: E402
+OTHER = os.path.join(SCRATCH, 'other_install')
+os.makedirs(os.path.join(OTHER, 'Local'))
+open(os.path.join(OTHER, 'IsletClient_release(x64).exe'), 'wb').close()
+table = ctx.world.save_product_table()
+UNKNOWN = max(table.types) + 1000
+cpt = table.get(CHAIR)
+w = brick.World.from_bytes(src, table, strict=True)
+RX, RZ = X0 >> 4, Z0 >> 4
+before = len(w.region(RX, RZ).objects)
+w.region(RX, RZ).objects += [
+    brick.new_product(cpt, X0 + 1, Y, Z0 + 1),
+    brick.WorldObject(brick.OBJ_PRODUCT, UNKNOWN, X0 + 3, Y, Z0 + 3, extra=brick.new_product_extra(cpt))]
+MOD_SAVE = os.path.join(OTHER, 'Local', 'modded.bwr')
+with open(MOD_SAVE, 'wb') as f:
+    f.write(w.to_bytes())
+d = must('world_open', path=MOD_SAVE)
+M = d['session']
+u = d.get('objects_unreadable_regions') or {}
+check('mod save: unreadable region reported', u.get('count') == 1 and u.get('regions') == [[RX, RZ]], u)
+check('mod save: unknown product and where it stands',
+      (u.get('unknown_products') or [{}])[0] == {'product': UNKNOWN, 'pos': [X0 + 3, Y, Z0 + 3]}, u)
+check('mod save: objects of the block counted', u.get('objects') == before + 2, u)
+check('mod save: hint names the install it was played in', u.get('played_in') == OTHER
+      and OTHER in u.get('hint', '') and 'set_game' in u.get('hint', ''), u)
+check('world_info repeats it', must('world_info', session=M).get('objects_unreadable_regions', {}).get('count') == 1)
+check('pack world: no warning', 'objects_unreadable_regions' not in must('world_info', session=W))
+RBOX = [RX * 16, 0, RZ * 16, RX * 16 + 15, 255, RZ * 16 + 15]
+o = must('world_objects', session=M, box=RBOX)
+check('world_objects: none listed there, says why', o.get('count') == 0 and 'objects_unreadable_regions' in o, o)
+o = must('world_objects', session=M, box=[RX * 16 + 16, 0, RZ * 16, RX * 16 + 31, 255, RZ * 16 + 15])
+check('world_objects next door: no note', 'objects_unreadable_regions' not in o, o)
+check('world_stats notes it', 'objects_unreadable_regions' in must('world_stats', session=M, box=RBOX))
+r = must('world_clear', session=M, box=[RX * 16, Y, RZ * 16, RX * 16 + 15, Y + 2, RZ * 16 + 15])
+check('world_clear notes the furniture it could not delete', r.get('objects_deleted') == 0
+      and (r.get('objects_unreadable_regions') or {}).get('regions') == [[RX, RZ]], r)
+ok, e, _ = T('world_delete_objects', session=M, box=RBOX)
+check('world_delete_objects(box): says why nothing is there', not ok and '읽지 못한' in str(e), e)
+r = must('world_save', session=M)
+saved = r.get('saved', '')
+check('mod save: written to a new file, kept block noted', saved.endswith('modded_edit.bwr')
+      and (r.get('objects_unreadable_regions') or {}).get('count') == 1, r)
+ext = brick.ProductTable({**table.types, UNKNOWN: dataclasses.replace(cpt, id=UNKNOWN)})
+with open(saved, 'rb') as f:
+    w2 = brick.World.from_bytes(f.read(), ext, strict=True)
+objs2 = [(o.type_id, o.x, o.y, o.z) for o in w2.region(RX, RZ).objects]
+check('mod save: nothing lost on save', len(objs2) == before + 2 and (UNKNOWN, X0 + 3, Y, Z0 + 3) in objs2
+      and (CHAIR, X0 + 1, Y, Z0 + 1) in objs2, objs2)
+must('world_close', session=M)
+
 # ------------------------------------------------------------------ content
 ok, d, imgs = T('texture_make', color='#8fc9a8', pattern='bricks')
 TEX = d.get('path') if ok else None

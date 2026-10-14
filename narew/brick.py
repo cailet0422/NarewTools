@@ -638,6 +638,24 @@ class World:
                 yield r, o
 
 
+def scan_objects_raw(raw: bytes, products: ProductTable | None) -> tuple[int, tuple | None]:
+    """For an object block kept verbatim (Region.objects_raw): (objects it declares, (kind, type, x, y, z)
+    of the record whose extra data could not be skipped - e.g. a product the table lacks - or None)."""
+    c = _Cursor(raw, 0, len(raw))
+    try:
+        n = c.i32()
+    except BrickError:
+        return 0, None
+    try:
+        for _ in range(max(0, n)):
+            head = None
+            head = _OBJ.unpack(c.take(_OBJ.size))
+            _skip_extra(c, head[0], head[1], products)
+    except (BrickError, struct.error):
+        return n, tuple(head[:5]) if head else None
+    return n, None
+
+
 def _read_region(d: bytes, p: int, end: int, rx: int, rz: int,
                  products: ProductTable | None, strict: bool, last: bool):
     version, size = struct.unpack_from('<qi', d, p)

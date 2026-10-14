@@ -357,6 +357,17 @@ class WorldView(GLView):
                 best, best_t = ob, t
         return best
 
+    def _unreadable_here(self, pos):
+        """Say so when a click that found no object lands in a region whose objects were not read."""
+        if not self.doc or not self.doc.unreadable_regions():
+            return
+        hit = self._pick(pos)
+        if hit:
+            x, _, z = hit[0]
+            if 0 <= x < self.doc.width and 0 <= z < self.doc.depth and not self.doc.objects_decoded(x >> 4, z >> 4):
+                self.message.emit('이 영역의 설치물·나무는 지금 게임 폴더의 표로 읽지 못해 고르거나 지울 수 없습니다 '
+                                  '(저장해도 그대로 남습니다)')
+
     def _object_text(self, ob) -> str:
         key, kind, t, x, y, z, r = ob
         what = '나무' if kind == brick.OBJ_TREE else '설치물 ' + self.product_name(t)
@@ -452,10 +463,14 @@ class WorldView(GLView):
             ob = self._pick_object(pos)
             if ob is not None:
                 self.delete_object(ob[0])
+            else:
+                self._unreadable_here(pos)
             return
         if self.tool == 'edit':
             ob = self._pick_object(pos)
             self._select(ob[0] if ob is not None else None)
+            if ob is None:
+                self._unreadable_here(pos)
             return
         hit = self._pick(pos)
         if not hit:

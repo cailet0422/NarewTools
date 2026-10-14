@@ -7,6 +7,7 @@ furniture rules below so a product placed by an agent and one placed with the mo
                       cell inside and empty (air), no other object anchored there
 * collision_to_clear - collision bricks (255) a deleted product leaves that no other product needs
 * rotate_check      - can a placed product turn about its anchor, and which collision bricks move
+* unreadable_objects - regions whose furniture the tables in use do not know (a mod's), with a Korean hint
 
 Game coordinates: x and z horizontal, y up (0..height-1).  Region arrays are uint8[H, 16(z), 16(x)]
 (the file layout (y*16 + z)*16 + x).  Brick 0 = air, 1..254 = brick_table ids, 255 = invisible
@@ -14,12 +15,14 @@ collision filler written under placed furniture.
 """
 from __future__ import annotations
 
+import os
 from collections import OrderedDict
 
 import numpy as np
 
 from narew import brick
 
+from . import savedworlds
 from .core import StudioError
 from .svc_world import WorldDoc, WorldService
 
@@ -102,6 +105,51 @@ def rotate_check(doc: WorldDoc, ob, rot: int, get, loaded, live_objects):
         if v != 0 and not (v == COLLISION and c in mine and c not in others):
             return False, '돌린 자리가 막혀 있습니다 (블록이나 다른 설치물)', [], new
     return True, '', sorted(mine - set(new) - others), new
+
+
+# --------------------------------------------------------------------------- furniture the tables do not know
+
+def unreadable_objects(doc: WorldDoc, game_root: str | None = None, limit: int = 6) -> dict | None:
+    """What could not be read of a world's objects, or None when every region was decoded.
+
+    An object record's length depends on its product's type, so a region holding furniture that the
+    product table in use does not know (a mod's chair in a save played with that mod) cannot be split
+    into objects: its trees and furniture are not listed, cannot be deleted/turned/added to, and the
+    block is saved back verbatim.  {'count', 'regions' (first few [rx, rz]), 'objects' (declared),
+    'unknown_products' [{'product', 'pos'}], 'played_in' (the save's own install when it is another
+    one), 'hint' (Korean)}."""
+    regs = doc.unreadable_regions() if doc and doc.is_world else []
+    if not regs:
+        return None
+    total, unknown = 0, []
+    for rx, rz in regs:
+        n, stop = brick.scan_objects_raw(doc.obj.region(rx, rz).objects_raw or b'', doc.products)
+        total += max(0, n)
+        if stop and stop[0] == brick.OBJ_PRODUCT and doc.products.get(stop[1]) is None:
+            unknown.append({'product': stop[1], 'pos': list(stop[2:5])})
+    out = {'count': len(regs), 'regions': [list(r) for r in regs[:limit]], 'objects': total}
+    if unknown:
+        out['unknown_products'] = unknown[:limit]
+    where = ', '.join(f'({rx},{rz})' for rx, rz in regs[:3]) + (' 등' if len(regs) > 3 else '')
+    ids = sorted({u['product'] for u in unknown})
+    what = (f'표에 없는 설치물({", ".join(f"#{i}" for i in ids[:4])}{" 등" if len(ids) > 4 else ""})' if ids
+            else '표와 맞지 않는 설치물')
+    hint = (f'영역 {len(regs)}곳 {where}의 오브젝트(가구·나무 {total}개)를 읽지 못했습니다: 지금 게임 폴더의 '
+            f'{what}이 있습니다 (모드로 더한 가구?). 그 영역의 오브젝트는 목록·개수에서 빠지고 지우거나 돌릴 수 '
+            '없지만, 저장하면 그대로 남습니다. ')
+    played = savedworlds.save_game_root(doc.path) if doc.path else None
+    same = bool(played and game_root) and os.path.normcase(os.path.abspath(played)) == \
+        os.path.normcase(os.path.abspath(game_root))
+    if played and not same:
+        out['played_in'] = played
+        hint += f'이 세이브는 다른 설치 폴더({played})의 것이니 그 게임 폴더로 여세요.'
+    elif played:
+        hint += '그 가구를 더한 모드가 지금 이 게임 폴더에 적용되어 있지 않습니다. 플레이할 때의 모드를 다시 ' \
+                '적용하거나, 그때의 게임 폴더로 여세요.'
+    else:
+        hint += '그 세이브를 플레이한 게임 폴더(모드가 적용된 설치 폴더)로 여세요.'
+    out['hint'] = hint
+    return out
 
 
 # --------------------------------------------------------------------------- object ids
@@ -474,6 +522,11 @@ class EditSession:
 
     def objects_in(self, x0, y0, z0, x1, y1, z1):
         return [o for o in self.live_objects() if x0 <= o[3] <= x1 and y0 <= o[4] <= y1 and z0 <= o[5] <= z1]
+
+    def unreadable_in(self, x0, z0, x1, z1) -> list[tuple[int, int]]:
+        """Regions touching the horizontal box whose objects could not be read (see unreadable_objects)."""
+        return [(rx, rz) for rx, rz in self.doc.unreadable_regions()
+                if x0 >> 4 <= rx <= x1 >> 4 and z0 >> 4 <= rz <= z1 >> 4]
 
     def set_start(self, x: float, y: float, z: float):
         if not self.doc.is_world:

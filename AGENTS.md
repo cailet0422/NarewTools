@@ -84,8 +84,13 @@ bricks thick). `palette="plain"` keeps patterned tiles out; transparent pixels l
 game: a 128×128 double-sided wall in the user's world.
 
 Saves played with mods: furniture the open game folder's tables do not know (a mod's chair) makes that region's
-objects unreadable — they are kept as they are but not listed, so `world_clear` cannot delete them. Open such
-saves with the game folder they were played in (`--game "<Steam install>"` on the command line).
+objects unreadable — they are kept as they are but not listed, so `world_clear` cannot delete them. The tools say
+so: `world_open` / `world_info` return `objects_unreadable_regions` (count, first [rx, rz], objects in them, the
+unknown product ids and where they stand, `played_in` = the install the save belongs to, Korean `hint`), and
+`world_clear` / `world_delete_objects(box)` / `world_objects` / `world_stats` / `world_copy` add a `note` when their
+box touches such a region. **Tell the user** before claiming furniture there is gone. The 3D editor warns once
+and marks the title "⚠". Open such saves with the game folder they were played in (`set_game`, or
+`--game "<Steam install>" --no-follow` on the command line).
 
 ## Code map (when you change the tools themselves)
 

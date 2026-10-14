@@ -175,6 +175,35 @@ try:
                 errors.append('world: save file did not open')
         else:
             errors.append('world: save file not listed')
+    # a save played with a mod: furniture this game folder's tables do not know -> warned once, title marked
+    from narew import brick
+    other = os.path.join(SCRATCH, 'other_install')
+    os.makedirs(os.path.join(other, 'Local'), exist_ok=True)
+    open(os.path.join(other, 'IsletClient_release(x64).exe'), 'wb').close()
+    table = page.svc.save_product_table()
+    w = brick.World.from_bytes(st.read('map\\64_0.bwr', 'game'), table)
+    w.region(1, 1).objects.append(brick.WorldObject(brick.OBJ_PRODUCT, max(table.types) + 1000, 20, 100, 20,
+                                                    extra=b'\x00\x00'))
+    mod_save = os.path.join(other, 'Local', 'modded.bwr')
+    w.write(mod_save)
+
+    def warn_boxes():
+        return [b for b in QApplication.topLevelWidgets()
+                if isinstance(b, QMessageBox) and b.isVisible() and b.windowTitle() == '가구 일부를 읽지 못했습니다']
+    page.open_doc(('file', mod_save))
+    pump(8)
+    win.grab().save(os.path.join(shots, 'world_unreadable.png'))
+    boxes = warn_boxes()
+    if not (page.unreadable and page.unreadable['regions'] == [[1, 1]] and '⚠' in page.title.text()
+            and len(boxes) == 1 and other in boxes[0].text()):
+        errors.append(f'world: unreadable furniture not warned ({page.unreadable}, {page.title.text()!r}, '
+                      f'{len(boxes)} boxes)')
+    page.reload_doc()                          # an agent saved it: no second warning, title still marked
+    pump(8)
+    if len(warn_boxes()) != 1 or '⚠' not in page.title.text():
+        errors.append('world: unreadable warning repeated or title mark lost on reload')
+    for b in warn_boxes():
+        b.close()
 except Exception:
     errors.append('interaction: ' + traceback.format_exc())
 

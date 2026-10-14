@@ -4,7 +4,7 @@ from __future__ import annotations
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QInputDialog, QLabel, QLineEdit, QListWidget,
-                               QListWidgetItem, QSlider, QSplitter, QTabWidget, QVBoxLayout, QWidget)
+                               QListWidgetItem, QMessageBox, QSlider, QSplitter, QTabWidget, QVBoxLayout, QWidget)
 
 import os
 import time
@@ -12,6 +12,7 @@ import time
 from .. import savedworlds, svc_blocks as B
 from ..gl.voxels import BrickLUT
 from ..svc_world import WorldService
+from ..worldedit import unreadable_objects
 from .common import (DARK, ask_text, button, confirm, debounce, error, guarded, hbox, info, label, pil_to_qimage,
                      run_task, save_file, toast)
 from .pixelartdlg import ImageArtDialog
@@ -41,6 +42,8 @@ class WorldPage(QWidget):
         self.items = []
         self.saved = []               # the game's own world saves + captured copies (savedworlds)
         self.doc = None
+        self.unreadable = None        # worldedit.unreadable_objects of the open world (furniture not read)
+        self._warned = set()          # (world, game folder) already warned about it
         self.bricks = []
         self.atlas = None
         self.atlas_img = None         # the same atlas as a PIL image (colours for the image tool)
@@ -348,6 +351,7 @@ class WorldPage(QWidget):
         self.atlas_img = atlas
         self.atlas = QPixmap.fromImage(pil_to_qimage(atlas))
         self.view.open(doc, BrickLUT(bricks), atlas)
+        self.unreadable = unreadable_objects(doc, self.st.game.root if self.st.game else None)
         keep, self._keep_cam = getattr(self, '_keep_cam', None), None
         if keep and self.view.ren is not None:
             cam = self.view.cam
@@ -359,6 +363,25 @@ class WorldPage(QWidget):
         self._select_brick(self.view.selected)
         self.fill_products()
         self._setup_minimap()
+        self._warn_unreadable()
+
+    def _warn_unreadable(self):
+        """Once per world and game folder: some furniture of this world could not be read."""
+        u = self.unreadable
+        key = (self.doc.path or self.doc.name, self.st.game.root if self.st.game else None)
+        if not u or key in self._warned:
+            return
+        self._warned.add(key)
+        toast(f'⚠ 이 월드의 영역 {u["count"]}곳에서 가구·나무 {u["objects"]}개를 읽지 못했습니다 (제목의 ⚠ 참고)',
+              15000)
+        box = QMessageBox(QMessageBox.Warning, '가구 일부를 읽지 못했습니다', self._unreadable_text(),
+                          QMessageBox.Ok, self)
+        box.setModal(False)
+        box.setAttribute(Qt.WA_DeleteOnClose)
+        box.show()
+
+    def _unreadable_text(self) -> str:
+        return self.unreadable['hint'] + '\n\n위쪽의 게임 폴더 버튼으로 그 폴더를 고른 뒤 이 월드를 다시 여세요.'
 
     def _set_title(self):
         doc = self.doc
@@ -371,6 +394,9 @@ class WorldPage(QWidget):
         else:
             self.title.setText(f'{doc.name}  {size}  · {self.st.status_of(doc.name)}')
             self.title.setToolTip(doc.name)
+        if self.unreadable:
+            self.title.setText(self.title.text() + '  · ⚠ 가구 일부를 읽지 못함')
+            self.title.setToolTip(self.title.toolTip() + '\n\n' + self._unreadable_text())
 
     def _setup_minimap(self):
         if not self.doc.is_world:
