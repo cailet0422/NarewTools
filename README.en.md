@@ -104,7 +104,7 @@ NarewTools\
 
 - The three exes share the `_internal` folder, so always move **the whole `NarewTools` folder**.
 - The programs are not code-signed, so Windows SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
-- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.5.0`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
+- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.5.1`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
 - Up to 2.1.0, update by replacing the folder. Settings, mod projects and installed mods are stored in your user folders and stay ([File locations](#file-locations)).
 
 ## First-time setup
@@ -260,6 +260,7 @@ Apply modes:
 - **Table merging**: the `merge\` patches of enabled mods are applied from lowest to highest priority. If two mods change the same entry, the upper one wins. Original encoding and line endings are kept.
 - Loose data files in the game folder (`Language\string.xml` etc.) are backed up once as `<file>.orig` before being changed. Executables are never touched. The engine DLLs are changed only by **mods with code patches (format 3)**, after a one-time `<dll>.orig` backup; a patch is written only when its original bytes and the DLL version (SHA-256) match, and one patch file goes into all of its DLLs or into none. After a game update changes the version, that patch is skipped.
 - When a **Steam update** or "Verify integrity of game files" changes files, the next start detects it and tells you. Click **게임에 적용** (Apply to game) again.
+- **⟳ 새로고침** (Refresh, F5): reads mods copied into the mods folder by hand, mods installed from NarewStudio and changed game files again right away.
 
 ## Mod format
 
