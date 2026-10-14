@@ -158,6 +158,15 @@ Models and animations
 - model_export_gltf -> edit in Blender (30 fps; export with Include > Custom Properties) -> model_import_gltf.
 - model_import_new (new model entry from glTF), anim_import_gltf, anim_speed(name, factor).
 In-game loading of edited models is not verified yet - say so when you deliver such changes.
+
+Character swap (another 3D model as the player character, both genders, the game's own animations)
+- character_inspect(src): format, meshes, textures, whether a humanoid skeleton was found (bone mapping).
+  FBX, glTF/GLB, VRM, OBJ, PMX are read directly; DAE/3DS/BLEND/USD/ABC/PLY/STL/X3D need Blender.
+- character_swap(src, dry_run=true) -> preview picture; then character_swap(src) writes skeletons, the body,
+  all animations (bone lengths + root motion fitted), textures, and hides worn parts (face, hair, clothes ...).
+  Options: genders ["f1","m1"], height, arm_angle (12), leg_angle (auto), npcs, hide_parts, turn (if it faces away).
+- character_swap_status / character_swap_remove. To play it: manager_install_project -> manager_apply (ask first).
+- No humanoid skeleton (OBJ, statues): the model is glued to the pelvis. Verified in game with an FBX character.
 """
 
 MOD = """\

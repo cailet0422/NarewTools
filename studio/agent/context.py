@@ -46,7 +46,7 @@ class AgentContext:
         else:
             self.st.restore()
         self.follow = follow and not self.pinned
-        self._world = self._creator = self._models = None
+        self._world = self._creator = self._models = self._charswap = None
         self.sessions: dict = {}             # id -> EditSession
         self.session_meta: dict = {}         # id -> {'project': root, 'source': ...}
         self.clips: dict[str, Clip] = {}
@@ -78,6 +78,13 @@ class AgentContext:
             from ..svc_models import ModelService
             self._models = ModelService(self.st)
         return self._models
+
+    @property
+    def charswap(self):
+        if self._charswap is None:
+            from ..svc_charswap import CharSwapService
+            self._charswap = CharSwapService(self.st)
+        return self._charswap
 
     def gl(self):
         """A hidden OpenGL 3.3 context for offscreen renders (created on first use)."""

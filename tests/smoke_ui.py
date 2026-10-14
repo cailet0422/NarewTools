@@ -83,6 +83,26 @@ try:
         win.grab().save(os.path.join(shots, 'models_selected.png'))
     else:
         errors.append('models: list empty')
+    # character swap dialog: read a model (the game's own character exported to glTF), build the preview
+    from studio.ui.charswapdlg import CharSwapDialog
+    src_glb = page.svc.glb(['Item\\Default\\f1_body01.nwmt', 'Item\\Default\\f1_hair01.nwmt'], [], 'Character\\F1\\f1.nwbt')
+    st.settings.pop('charswap', None)
+    dlg = CharSwapDialog(page, st, win)
+    dlg.show()
+    dlg.set_file(src_glb)
+    end = time.time() + 60
+    while time.time() < end and dlg.view.model is None:
+        pump(0.5, settle=False)
+    pump(2)
+    dlg.grab().save(os.path.join(shots, 'models_charswap.png'))
+    if dlg.view.model is None or '✔' not in dlg.info_lbl.text():
+        errors.append(f'charswap dialog: no preview ({dlg.info_lbl.text()!r}, {dlg.pv_lbl.text()!r})')
+    dlg.pv_gender.setCurrentIndex(1)
+    pump(3)
+    if '남자' not in dlg.pv_lbl.text():
+        errors.append(f'charswap dialog: male preview ({dlg.pv_lbl.text()!r})')
+    dlg.close()
+    pump(0.5)
     page = win.page('furniture')
     win.open_page('furniture')
     pump(1)

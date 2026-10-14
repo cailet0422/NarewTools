@@ -465,14 +465,23 @@ class GuiPainter:
 # --------------------------------------------------------------------------- models / sound
 
 def model_view(ctx, names, anims=(), time_s=0.0, yaw=30.0, pitch=15.0, size=(640, 640)):
-    from ..gl.gltfview import GltfModel, ModelRenderer, frame_for
-    from ..gl.mathx import OrbitCamera
     info = ctx.models.info(names)
     path = ctx.models.glb(names, list(anims), info['skeleton'])
+    img, meta = glb_view(ctx, path, time_s, yaw, pitch, size)
+    meta['skeleton'] = info['skeleton']
+    return img, meta
+
+
+def glb_view(ctx, path, time_s=0.0, yaw=30.0, pitch=15.0, size=(640, 640), time_frac=None):
+    """Picture of a .glb (first animation at ``time_s``, or at ``time_frac`` of its length)."""
+    from ..gl.gltfview import GltfModel, ModelRenderer, frame_for
+    from ..gl.mathx import OrbitCamera
     gl = ctx.gl()
     ren = ctx.cached('model_renderer', lambda: ModelRenderer(gl))
     model = GltfModel(path)
     anim = model.animations[0] if model.animations else None
+    if time_frac is not None and anim is not None:
+        time_s = float(anim.duration) * float(time_frac)
     model.update(anim, time_s)
     ren.set_model(model)
     lo, hi, r = frame_for(model)
@@ -491,7 +500,7 @@ def model_view(ctx, names, anims=(), time_s=0.0, yaw=30.0, pitch=15.0, size=(640
         ren.set_model(None)
     return img.resize(size, Image.LANCZOS), {
         'bounds': [list(map(float, lo)), list(map(float, hi))], 'animations': len(model.animations),
-        'duration': float(anim.duration) if anim else 0.0, 'skeleton': info['skeleton']}
+        'duration': float(anim.duration) if anim else 0.0}
 
 
 def waveform(clip, width=900, height=200, marks=()) -> Image.Image:

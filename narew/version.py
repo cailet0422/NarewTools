@@ -2,5 +2,5 @@
 
 tools/build_exe.py names the zip after VERSION; studio.selfupdate compares it with the latest GitHub release.
 """
-VERSION = '2.5.1'
+VERSION = '2.6.0'
 REPO = 'cailet0422/NarewTools'

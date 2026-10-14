@@ -39,6 +39,8 @@ class ModelsPage(QWidget):
         ll.addWidget(self.search)
         ll.addWidget(self.list, 1)
         ll.addWidget(label('클릭: 보기 · 더블클릭: 장면에 추가 (옷·머리·신발 조합)', faint=True, wrap=True))
+        ll.addWidget(button('🧍 캐릭터 교체 (FBX·VRM·glTF·OBJ·PMX…)', self.open_charswap,
+                            tip='다른 3D 모델을 아일렛 플레이어 캐릭터(여자·남자) 대신 쓰는 모드를 만듭니다'))
         # center: view + controls
         self.parts_bar = QWidget()
         self.parts_lay = None
@@ -95,6 +97,21 @@ class ModelsPage(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(split)
+
+    def open_charswap(self):
+        from .charswapdlg import CharSwapDialog
+        if not self.mw.require_game():
+            return
+        dlg = CharSwapDialog(self, self.st, self.mw)
+        dlg.exec()
+        if dlg.applied:
+            self.all = []
+            self.on_show()
+            st = dlg.svc.status() or {}
+            gs = (st.get('options') or {}).get('genders') or ['f1']
+            from ..svc_charswap import GENDERS
+            body = GENDERS[gs[0]]['body']
+            self.set_parts([body])
 
     # ------------------------------------------------------------------ list
     def on_show(self, name: str | None = None):

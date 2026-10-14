@@ -46,7 +46,7 @@ and worlds (maps). A mod manager puts them into the game and can always restore 
 |---|---|
 | **NarewStudio.exe** | Makes mods. It only **reads** the game files; changed files and added entries are saved into a mod project |
 | **NarewModManager.exe** | Enables/disables and orders mods, applies them to the game, restores the originals |
-| **NarewAgent.exe** | Bridge for AI agents (console). Exposes NarewStudio as 113 tools over MCP and a command line |
+| **NarewAgent.exe** | Bridge for AI agents (console). Exposes NarewStudio as 117 tools over MCP and a command line |
 | `narew` (Python) | Command line tools: unpack/build packs, models ↔ glTF, brick (voxel) file conversion (run from source) |
 
 ## Features
@@ -62,7 +62,7 @@ and worlds (maps). A mod manager puts them into the game and can always restore 
 | GUI 편집 (GUI editor) | 169 game screen layouts drawn with the real images: move, resize, change text and colour, add new images/buttons/text |
 | 사운드 편집 (Sound editor) | Waveform view, cut/paste/fade/volume/normalize/reverse/speed, saved in the original format |
 | 월드 에디터 (World editor) | 3D editing of world maps (`.bwr`) and building prefabs (`.iaf`), furniture placement, **open/capture your own world (game save) and put it back into the game** |
-| 모델 뷰어 (Model viewer) | 3,633 models and their animations, combine character parts, export/import glTF (Blender) |
+| 모델 뷰어 (Model viewer) | 3,633 models and their animations, combine character parts, export/import glTF (Blender), **character swap** with another 3D model |
 | 팩 탐색기 (Pack explorer) | Extract, verify and build `.pack` files |
 | 내 모드 (My mod) | List/revert changes, install into the mod manager, make a .zip for sharing |
 
@@ -104,7 +104,7 @@ NarewTools\
 
 - The three exes share the `_internal` folder, so always move **the whole `NarewTools` folder**.
 - The programs are not code-signed, so Windows SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
-- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.5.1`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
+- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.6.0`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
 - Up to 2.1.0, update by replacing the folder. Settings, mod projects and installed mods are stored in your user folders and stay ([File locations](#file-locations)).
 
 ## First-time setup
@@ -234,6 +234,7 @@ Edits game maps (`.bwr`) and building prefabs (`.iaf`) in 3D.
 
 - Browse models by kind and play animations. For characters, double-click clothes, hair, face and shoe parts to combine them in one scene.
 - **Export to glTF** → edit in Blender → **import from glTF** to change models and animations. Adding new animations and changing playback speed is supported too.
+- **🧍 Character swap**: pick an FBX, VRM, glTF/GLB, PMX or OBJ model (DAE, 3DS, BLEND, USD and more when Blender is installed) to use instead of the female and male player characters and the human NPCs. The model's limbs are posed into the Islet bind pose and every Islet animation is fitted to its bone and leg lengths (rotations unchanged); the original face, hair and clothes are hidden. Check it per animation in the preview, then apply it to the mod → [docs/11-character-swap.md](docs/11-character-swap.md) (Korean)
 - Blender tips: set the scene frame rate to **30 fps** before importing, and enable **Include → Custom Properties** when exporting (keeps the original data).
 
 ### 팩 탐색기 · 내 모드 (Pack explorer · My mod)
@@ -298,7 +299,7 @@ A `merge\` patch (UTF-8). An entry with the same key is replaced whole; otherwis
 
 ## Connecting AI agents
 
-Every NarewStudio feature is available as **113 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
+Every NarewStudio feature is available as **117 tools** (maps, buildings and furniture placement; new blocks, furniture, items and sounds; any game file; XML tables; GUI; sound; models; packs; the mod manager).
 Agents check their work with ASCII maps and pictures (top-down map, 3D, GUI, model, waveform).
 
 **Worlds bigger than 1024**: the game's "create map" always makes 1024×1024, but an agent can make a flat world up to
@@ -509,6 +510,7 @@ Up to 2.4.0 the settings and installed mods that NarewStudio, the mod manager an
 | World editing (blocks, furniture) + apply to my world | ✅ verified in game |
 | Worlds bigger than 1024 (up to 4096×4096, `world_new`) | ✅ verified in game |
 | Engine code patches (`patches\`: view distance slider + region loading, free camera) | ✅ verified in game |
+| Character swap (another model as the player character, both genders + NPCs) | ✅ verified in game |
 | Edited models/animations loading in game | ⚠ not verified yet |
 | Effects of generic new items, weather/time background music | ⚠ not verified yet |
 | Multiplayer | ⚠ not verified yet |
@@ -539,8 +541,9 @@ AGENTS.md    instructions for AI agents; .mcp.json registers the MCP server for 
 | [06 Program manual](docs/06-studio-modmanager.md) | NarewStudio and NarewModManager in detail |
 | [07 New content](docs/07-new-content.md) | Engine limits, table merge rules |
 | [08 GUI layout](docs/08-gui-layout.md) | Editing `Gui\*.xml` |
-| [09 AI agents](docs/09-ai-agents.md) | 113 tools, connection, safety |
+| [09 AI agents](docs/09-ai-agents.md) | 117 tools, connection, safety |
 | [10 Code patches](docs/10-code-patches.md) | Mod format 3 `patches/`, view distance slider and free camera analysis |
+| [11 Character swap](docs/11-character-swap.md) | Another 3D model as the Islet character: formats, retargeting, limits |
 
 The `re/` analysis output mentioned in the docs (game binary dumps, decompiler output) is not included in this repository.
 

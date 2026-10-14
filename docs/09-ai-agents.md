@@ -15,7 +15,7 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 - 도구 목록: `python -m studio.agent tools`, 사용법: `python -m studio.agent guide world` (overview, world, content, gui, sound, models, mod, safety)
 - 에이전트용 안내는 `AGENTS.md`(Claude Code는 `CLAUDE.md`로 자동으로 읽음)와 MCP 서버의 instructions에 들어 있다.
 
-## 2. 무엇을 할 수 있나 (도구 113개)
+## 2. 무엇을 할 수 있나 (도구 117개)
 
 | 묶음 | 도구 | 내용 |
 |---|---|---|
@@ -25,7 +25,7 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 | files / tables | `files_search` `text_read/write/edit` `file_import/export/revert` `image_view/adjust` `texture_make` `table_records/upsert/remove` `string_get/set` `pack_extract/verify/build` `packs_list` | 모든 리소스, XML 표 레코드 병합, 문자열, 팩 |
 | gui | `gui_list` `gui_tree` `gui_render` `gui_edit` `gui_textures` `gui_revert` | 화면 레이아웃: 노드 번호가 찍힌 그림을 보고 옮기기·크기·글자·색·그림·추가·삭제 |
 | sound | `sound_list` `sound_info`(파형 그림) `sound_edit` `sound_import` `sound_export` | 자르기·페이드·볼륨·정규화·거꾸로·속도, 다른 파일로 교체(형식 자동 맞춤) |
-| models | `models_list` `model_info` `model_render` `model_export_gltf` `model_import_gltf/new` `anim_import_gltf` `anim_speed` | 모델 그림, Blender 왕복, 애니메이션 속도 |
+| models | `models_list` `model_info` `model_render` `model_export_gltf` `model_import_gltf/new` `anim_import_gltf` `anim_speed` `character_inspect` `character_swap` `character_swap_status/remove` | 모델 그림, Blender 왕복, 애니메이션 속도, 다른 3D 모델(FBX·VRM·glTF·PMX·OBJ…)을 플레이어 캐릭터로 교체([11](11-character-swap.md)) |
 | manager | `manager_status` `manager_install_project` `manager_set_mod` `manager_apply` `manager_restore` | 모드 매니저 |
 
 ## 3. 열려 있는 NarewStudio 창과 함께 쓰기
@@ -98,6 +98,7 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 | `studio/worldedit.py` | 화면 없는 월드 편집 세션 + 3D 에디터와 함께 쓰는 가구 규칙 |
 | `studio/ui/agentlink.py` | 창 쪽 연결: 변경 다시 읽기, 화면 열기 요청, 상태 알림 |
 | `tests/test_agent.py` | 가짜 게임 폴더에서 모든 묶음 + MCP 프로토콜 + CLI (276개 확인) |
+| `tests/test_charswap.py` | 캐릭터 교체: FBX(바이너리·ASCII)·OBJ·PMX·UE 이름·VRM 읽기, 자기 자신으로 교체하면 원래대로(리타깃 검산), 서비스·도구 (70개 확인) |
 | `tests/test_agent_live.py` | 실제 창 + 별도 에이전트 프로세스: 월드 다시 읽기(카메라 유지), studio_view/show, 프로젝트 따라가기 |
 
 ```bash

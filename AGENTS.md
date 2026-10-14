@@ -3,9 +3,9 @@
 NarewTools is a modding toolkit for **Islet Online** (in-house engine NarewEngine2). The user writes in
 **Korean**; answer in Korean. Tool errors are Korean messages meant to be shown as-is.
 
-Everything NarewStudio (the Qt app) can do is available to you as **113 typed tools**: maps and buildings,
+Everything NarewStudio (the Qt app) can do is available to you as **117 typed tools**: maps and buildings,
 furniture placement, new blocks / furniture / items / sounds, any game file, XML table records, GUI screen
-layouts, sounds, models, packs, the mod manager — plus pictures and ASCII views so you can check your work.
+layouts, sounds, models, character swap (any FBX/VRM/glTF/PMX/OBJ... model as the player), packs, the mod manager — plus pictures and ASCII views so you can check your work.
 
 ## Connect
 
@@ -33,8 +33,10 @@ explains workflows: `overview`, `world`, `content`, `gui`, `sound`, `models`, `m
 5. In-game verified: new blocks, new furniture, hand recipes, strings, UI sound, GUI images/layout, world edits
    + apply to my world, picture pixel-art walls, worlds up to 4096×4096 (`world_new` + `new_world`), engine code
    patches (`patches/`: the view distance slider from `tools/mod_view_distance.py`, the free camera from
-   `tools/mod_freecam.py` - one patch file over NarewEngine2 + IsletEngine). **Not verified yet** (say so when you
-   deliver them): edited models/animations in game, generic new items' effects, weather/time BGM, multiplayer.
+   `tools/mod_freecam.py` - one patch file over NarewEngine2 + IsletEngine), the character swap (`character_swap`:
+   an FBX model as F1 + M1 + human NPCs with retargeted animations). **Not verified yet** (say so when you
+   deliver them): other edits of models/animations in game, generic new items' effects,
+   weather/time BGM, multiplayer.
    A new code patch is a new risk every time: check it with capstone and the Windows loader, keep it pinned to the
    DLL sha256, and say it is untested in game until the user confirms.
 
@@ -107,6 +109,24 @@ box touches such a region. **Tell the user** before claiming furniture there is 
 and marks the title "⚠". Open such saves with the game folder they were played in (`set_game`, or
 `--game "<Steam install>" --no-follow` on the command line).
 
+## Character swap (another model as the player character)
+
+```
+character_inspect(src)                   format, meshes, textures, humanoid bone mapping (or why not)
+character_swap(src, dry_run=true)        preview picture (front/back per gender, posed by preview_anim)
+character_swap(src)                      writes the swap into the open project (F1 + M1 + human NPCs)
+character_swap_status / _remove          what was written / undo (restores files the project had before)
+```
+
+Readers: FBX (binary/ASCII 7.x), glTF/GLB, VRM (humanoid map), PMX, OBJ built in; DAE/3DS/BLEND/USD/ABC/PLY/STL/X3D
+through Blender (`blender=` or found automatically). The model is re-posed into the Islet bind pose (arms `arm_angle`
+12° closer to the body, legs `leg_angle` auto), the skeletons keep every Islet bone/id/orientation with the model's
+joint positions, all animations keep their rotations byte for byte (positions: new bone lengths, root motion × hip
+height ratio), worn parts (face/hair/clothes/shoes/hats/back/accessories, ~1,380 models) become one zero-area
+triangle each (materials/helpers kept). Details: `docs/11-character-swap.md`. Verified in game (Yui FBX, 2026-10-15); chairs put
+long legs through the floor; hats/clothes do not show. Tell the user not to share the mod zip publicly (it holds
+edited game animations and someone else's model).
+
 ## Code map (when you change the tools themselves)
 
 | Path | What |
@@ -119,12 +139,14 @@ and marks the title "⚠". Open such saves with the game folder they were played
 | `studio/agent/live.py`, `studio/ui/agentlink.py` | link to the running window (`Documents\NarewStudio\agent\`) |
 | `studio/worldedit.py` | headless world editing + furniture rules shared with the 3D editor (`ui/worldview.py`) |
 | `studio/*.py` (svc_*, creator, guilayout, audio, savedworlds) | the studio services the tools call |
+| `narew/charswap.py`, `narew/scene3d.py` (+ `fbx.py`, `scene_gltf.py`, `scene_obj.py`, `scene_pmx.py`) | character swap: model readers -> one scene format, rig detection, re-posing, skeleton/animation retarget, hiding parts; `studio/svc_charswap.py` writes it into a project, `studio/ui/charswapdlg.py` is the window |
 
 Tests (never touch the real install; they build a fake game folder):
 
 ```
 python tests/test_agent.py "<game folder>" <scratch dir>
 python tests/test_agent_live.py "<game folder>" <scratch dir>
+python tests/test_charswap.py "<game folder>" <scratch dir> [model file]
 ```
 
 Run them after changing tools; `tests/test_place_products.py` covers the shared furniture rules in the 3D editor.

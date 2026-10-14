@@ -224,3 +224,115 @@ def anim_speed(ctx, name, speed):
     new, n = ctx.models.set_anim_speed(name, speed)
     ctx.notify([name])
     return {'name': name, 'framerate_before': old, 'framerate_after': new, 'frames': n}
+
+
+# ---------------------------------------------------------------------- character swap
+
+_SWAP_FORMATS = ('FBX, glTF/GLB, VRM, OBJ, PMX (built in); DAE, 3DS, BLEND, USD, ABC, PLY, STL, X3D through Blender '
+                 '(found automatically or given with blender=)')
+
+
+def _swap_anim(plan_anims: list[str], want: str) -> str | None:
+    want = want.lower().removesuffix('.nwat')
+    for a in plan_anims:
+        b = a.lower().rsplit('\\', 1)[-1].removesuffix('.nwat')
+        if b == want or b.endswith('_' + want):
+            return a
+    return None
+
+
+def _swap_preview(ctx, genders, anim, files_root=None):
+    """Front + back picture per gender, posed by ``anim`` (from files_root = a dry-run folder, or the project)."""
+    from PIL import Image as _Image, ImageDraw as _Draw
+    from narew import convert
+    from ..svc_charswap import GENDERS
+    plan = ctx.charswap.plan(genders, npcs=False, hide=False)
+    tiles = []
+    for g in genders:
+        cfg = GENDERS[g]
+        a = _swap_anim(plan[g]['anims'], anim) or _swap_anim(plan[g]['anims'], 'noncombat_idle')
+        if files_root:
+            def fp(n):
+                return os.path.join(files_root, *n.split('\\'))
+            glb = os.path.join(files_root, f'preview_{g}.glb')
+            convert.export_gltf([fp(cfg['body'])], glb, skeleton=fp(cfg['skeleton']), anims=[fp(a)] if a else [])
+        else:
+            glb = ctx.models.glb([cfg['body']], [a] if a else [], cfg['skeleton'])
+        for yaw in (25.0, 205.0):
+            img, _ = render.glb_view(ctx, glb, 0.0, yaw, 10.0, (360, 360), time_frac=0.3)
+            _Draw.Draw(img).text((6, 6), f'{cfg["label"]} ({g}) {os.path.basename(a or "")}', fill=(255, 230, 90),
+                                 font=render.font(14))
+            tiles.append(img)
+    sheet = _Image.new('RGB', (360 * len(tiles), 360), (28, 30, 38))
+    for k, im in enumerate(tiles):
+        sheet.paste(im, (k * 360, 0))
+    return render.save(sheet, ctx.out_path('charswap_preview'))
+
+
+@tool('character_inspect', 'models',
+      'Read a 3D model file to use as the player character: format, meshes, textures and whether a humanoid skeleton '
+      f'was recognised (bone mapping). Formats: {_SWAP_FORMATS}.',
+      src=STR('Model file on disk.'), blender=STR('blender.exe (only for formats read through Blender).', None),
+      turn=NUM('Extra turn about the vertical axis in degrees if the model faces the wrong way.', 0))
+def character_inspect(ctx, src, blender, turn):
+    return ctx.charswap.inspect(src, blender, turn)
+
+
+@tool('character_swap', 'models',
+      'Replace the Islet player character (female F1 and/or male M1) with a model file. Writes the new skeletons, the '
+      'model as the body, every animation fitted to its proportions, its textures, and hides the other worn parts '
+      '(face, hair, clothes, shoes, hats ...) since the model brings its own. Human NPCs (npc\\human) are converted '
+      'too unless npcs=false. Running it again replaces the previous swap. dry_run=true builds into a temp folder and '
+      'only returns the preview picture. Verified in game with an FBX character; check each new model in the preview.', writes=True,
+      src=STR('Model file on disk.'),
+      genders=ARR('Characters to replace: "f1" (female) and/or "m1" (male).', {'type': 'string', 'enum': ['f1', 'm1']},
+                  ['f1', 'm1']),
+      height=NUM('Height in game units (default: the original character\'s, about 1.9).', None),
+      arm_angle=NUM('Arms posed this many degrees closer to the body than the chibi (0 = exact).', 12),
+      leg_angle=NUM('Legs splayed outward by this many degrees (default: from hip width / leg length).', None),
+      npcs=BOOL('Also convert the human NPCs (they wear the same hidden parts).', True),
+      hide_parts=BOOL('Hide face/hair/clothes/shoes/hats/accessories of both genders.', True),
+      turn=NUM('Extra turn about the vertical axis (degrees) if the model faces the wrong way.', 0),
+      blender=STR('blender.exe for formats read through Blender.', None),
+      dry_run=BOOL('Only build a preview (nothing written to the project).', False),
+      preview_anim=STR('Animation for the preview picture (e.g. noncombat_idle, common_run, common_e_dance_01).',
+                       'common_run'))
+def character_swap(ctx, src, genders, height, arm_angle, leg_angle, npcs, hide_parts, turn, blender, dry_run,
+                   preview_anim):
+    genders = [g.lower() for g in (genders or ['f1', 'm1'])]
+    if dry_run:
+        from ..svc_charswap import preview_dir
+        import shutil as _sh
+        d = preview_dir()
+        try:
+            rep = ctx.charswap.build(src, genders, height, arm_angle, leg_angle, False, False, turn, blender, out_dir=d)
+            img = _swap_preview(ctx, genders, preview_anim, d)
+        finally:
+            _sh.rmtree(d, ignore_errors=True)
+        rep.pop('written_to', None)
+        rep['dry_run'] = True
+        return Result({**rep, 'image': img}, [img])
+    rep = ctx.charswap.build(src, genders, height, arm_angle, leg_angle, npcs, hide_parts, turn, blender)
+    from ..svc_charswap import GENDERS
+    ctx.notify([GENDERS[g]['body'] for g in genders] + [GENDERS[g]['skeleton'] for g in genders])
+    img = _swap_preview(ctx, genders, preview_anim)
+    rep['next'] = 'manager_install_project -> manager_apply(confirm=true) puts it in the game (ask the user first).'
+    return Result({**rep, 'image': img}, [img])
+
+
+@tool('character_swap_status', 'models', 'The character swap in the open mod project (source model, options, '
+      'how many files it wrote), or null.')
+def character_swap_status(ctx):
+    s = ctx.charswap.status()
+    if s:
+        s = {**s, 'written': len(s.get('written', [])), 'backups': len(s.get('backups', []))}
+    return s
+
+
+@tool('character_swap_remove', 'models', 'Undo the character swap in the open mod project (deletes what it wrote, '
+      'restores files the project had before).', writes=True)
+def character_swap_remove(ctx):
+    r = ctx.charswap.remove()
+    from ..svc_charswap import GENDERS
+    ctx.notify([c['body'] for c in GENDERS.values()])
+    return r
