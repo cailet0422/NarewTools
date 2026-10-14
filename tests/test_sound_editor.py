@@ -12,6 +12,7 @@ import wave
 GAME, SCRATCH = sys.argv[1], os.path.abspath(sys.argv[2])
 os.environ['APPDATA'] = os.path.join(SCRATCH, 'appdata')
 os.environ['LOCALAPPDATA'] = os.path.join(SCRATCH, 'localappdata')
+os.environ['USERPROFILE'] = os.path.join(SCRATCH, 'home')    # Documents\NarewStudio: shared settings, mods
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402

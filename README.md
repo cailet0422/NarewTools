@@ -100,7 +100,7 @@ NarewTools\
 
 - 세 exe는 `_internal` 폴더를 같이 쓰므로 **`NarewTools` 폴더째** 옮기세요.
 - 서명되지 않은 프로그램이라 Windows SmartScreen이 "PC 보호" 창을 띄울 수 있습니다. **추가 정보 → 실행** 을 누르면 됩니다.
-- **자동 업데이트** (2.2.0부터): NarewStudio·모드 매니저를 켜면 새 버전을 확인하고(6시간에 한 번, 끌 수 있음), 바뀐 점을 보여 줍니다. **업데이트** 를 누르면 받아서 SHA-256으로 확인한 뒤, 프로그램을 닫을 때 새 파일로 바꾸고 다시 엽니다. 바꾸기 전 파일은 `%LOCALAPPDATA%\NarewTools\update\backup-<버전>\` 에 백업하고, 실패하면 원래대로 되돌립니다. 머리줄 오른쪽의 버전 버튼(`v2.4.0`)으로 바로 확인할 수도 있습니다. 폴더가 `Program Files` 처럼 쓸 수 없는 곳에 있으면 자동으로 바꿀 수 없으니 문서 등으로 옮기세요.
+- **자동 업데이트** (2.2.0부터): NarewStudio·모드 매니저를 켜면 새 버전을 확인하고(6시간에 한 번, 끌 수 있음), 바뀐 점을 보여 줍니다. **업데이트** 를 누르면 받아서 SHA-256으로 확인한 뒤, 프로그램을 닫을 때 새 파일로 바꾸고 다시 엽니다. 바꾸기 전 파일은 `%LOCALAPPDATA%\NarewTools\update\backup-<버전>\` 에 백업하고, 실패하면 원래대로 되돌립니다. 머리줄 오른쪽의 버전 버튼(`v2.4.1`)으로 바로 확인할 수도 있습니다. 폴더가 `Program Files` 처럼 쓸 수 없는 곳에 있으면 자동으로 바꿀 수 없으니 문서 등으로 옮기세요.
 - 2.1.0 이하에서는 폴더를 통째로 교체하세요. 설정·모드 프로젝트·설치한 모드는 사용자 폴더에 따로 저장되어 그대로 남습니다([파일 위치](#파일-위치)).
 
 ## 처음 설정
@@ -469,14 +469,16 @@ python tests\test_agent_live.py "<게임 폴더>" D:\scratch\t_live
 
 | 무엇 | 위치 |
 |---|---|
-| NarewStudio 설정·로그 | `%APPDATA%\NarewStudio\` (`log.txt`) |
+| NarewStudio 설정 · 로그 | `문서\NarewStudio\settings.json` · `%APPDATA%\NarewStudio\log.txt` |
 | 모드 프로젝트 | `문서\NarewStudio\Projects\` (새 모드를 만들 때 바꿀 수 있음) |
 | 저장/캡처한 월드 | `문서\NarewStudio\Worlds\` |
 | 내 월드 적용 전 백업 | `문서\NarewStudio\WorldBackups\` |
-| 모드 매니저 (설치한 모드·설정·로그) | `%LOCALAPPDATA%\NarewModManager\` (`mods\`, `settings.json`, `deployed.json`, `log.txt`) |
+| 모드 매니저 (설치한 모드·설정 · 로그) | `문서\NarewStudio\ModManager\` (`mods\`, `settings.json`, `deployed.json`) · `%LOCALAPPDATA%\NarewModManager\log.txt` |
 | 모드 적용 시 원본 백업 | `<게임 폴더>\data\<팩>.pack.orig`, `<게임 폴더>\<파일>.orig` |
-| AI 에이전트 ↔ 창 연결 | `%APPDATA%\NarewStudio\agent\` (네트워크·포트를 쓰지 않음) |
+| AI 에이전트 ↔ 창 연결 | `문서\NarewStudio\agent\` (네트워크·포트를 쓰지 않음) |
 | 자동 업데이트 (설정 · 받은 파일·백업·기록) | `%APPDATA%\NarewTools\update.json` · `%LOCALAPPDATA%\NarewTools\update\` |
+
+NarewStudio·모드 매니저·AI 에이전트가 함께 보는 설정과 설치한 모드는 2.4.0까지 AppData에 있었습니다. Claude 데스크톱 앱처럼 Windows 패키지(MSIX) 앱에서 실행된 에이전트는 AppData에 만든 파일을 자기만 보는 사본에 쓰기 때문에 `문서\NarewStudio\`로 옮겼습니다. 예전 위치의 설정과 모드는 처음 실행할 때 가져옵니다.
 
 ## 문제 해결
 

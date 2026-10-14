@@ -12,11 +12,26 @@ def appdata(app: str) -> str:
     return p
 
 
-def manager_home() -> str:
-    base = os.environ.get('LOCALAPPDATA') or os.environ.get('APPDATA') or os.path.expanduser('~')
-    p = os.path.join(base, 'NarewModManager')
+def shared_dir(*parts: str) -> str:
+    """Folder for what NarewStudio, NarewModManager and AI agents must all see: Documents\\NarewStudio.
+
+    Not AppData: Windows gives packaged (MSIX) programs - the Claude desktop app, Python from the Microsoft
+    Store - a private copy of every file they create under AppData, so an agent started from one of them
+    installed mods and changed settings that the user's own NarewStudio and NarewModManager never saw."""
+    p = os.path.join(documents_dir(), 'NarewStudio', *parts)
     os.makedirs(p, exist_ok=True)
     return p
+
+
+def manager_home() -> str:
+    """Installed mods, their order and the record of what is applied to the game."""
+    return shared_dir('ModManager')
+
+
+def manager_local_dir() -> str:
+    """%LOCALAPPDATA%\\NarewModManager: the mod manager's log; up to 2.4.0 also everything in manager_home()."""
+    base = os.environ.get('LOCALAPPDATA') or os.environ.get('APPDATA') or os.path.expanduser('~')
+    return os.path.join(base, 'NarewModManager')
 
 
 def manager_mods_dir() -> str:

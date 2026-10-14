@@ -11,6 +11,7 @@ GAME, OUT = sys.argv[1], os.path.abspath(sys.argv[2])
 os.makedirs(OUT, exist_ok=True)
 os.environ['APPDATA'] = os.path.join(OUT, 'appdata')
 os.environ['LOCALAPPDATA'] = os.path.join(OUT, 'localappdata')
+os.environ['USERPROFILE'] = os.path.join(OUT, 'home')    # Documents\NarewStudio: shared settings, mods
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import moderngl  # noqa: E402

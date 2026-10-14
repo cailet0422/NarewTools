@@ -104,7 +104,7 @@ NarewTools\
 
 - The three exes share the `_internal` folder, so always move **the whole `NarewTools` folder**.
 - The programs are not code-signed, so Windows SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
-- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.4.0`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
+- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.4.1`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
 - Up to 2.1.0, update by replacing the folder. Settings, mod projects and installed mods are stored in your user folders and stay ([File locations](#file-locations)).
 
 ## First-time setup
@@ -473,14 +473,16 @@ For the other tests (`tests\test_*.py`, `smoke_*.py`) see the arguments at the t
 
 | What | Where |
 |---|---|
-| NarewStudio settings and log | `%APPDATA%\NarewStudio\` (`log.txt`) |
+| NarewStudio settings · log | `Documents\NarewStudio\settings.json` · `%APPDATA%\NarewStudio\log.txt` |
 | Mod projects | `Documents\NarewStudio\Projects\` (can be changed when creating a mod) |
 | Saved/captured worlds | `Documents\NarewStudio\Worlds\` |
 | Backups made before "apply to my world" | `Documents\NarewStudio\WorldBackups\` |
-| Mod manager (installed mods, settings, log) | `%LOCALAPPDATA%\NarewModManager\` (`mods\`, `settings.json`, `deployed.json`, `log.txt`) |
+| Mod manager (installed mods, settings · log) | `Documents\NarewStudio\ModManager\` (`mods\`, `settings.json`, `deployed.json`) · `%LOCALAPPDATA%\NarewModManager\log.txt` |
 | Original backups made when applying mods | `<game folder>\data\<pack>.pack.orig`, `<game folder>\<file>.orig` |
-| AI agent ↔ window link | `%APPDATA%\NarewStudio\agent\` (no network or ports) |
+| AI agent ↔ window link | `Documents\NarewStudio\agent\` (no network or ports) |
 | Automatic update (settings · downloads, backup, log) | `%APPDATA%\NarewTools\update.json` · `%LOCALAPPDATA%\NarewTools\update\` |
+
+Up to 2.4.0 the settings and installed mods that NarewStudio, the mod manager and AI agents share were kept in AppData. An agent started from a packaged (MSIX) Windows app such as the Claude desktop app writes the files it creates in AppData to a private copy only it sees, so they moved to `Documents\NarewStudio\`. Settings and mods in the old place are taken over on the first start.
 
 ## Troubleshooting
 

@@ -104,7 +104,7 @@ NarewTools\
 
 - 3 つの exe は `_internal` フォルダーを共有するので、移動するときは **`NarewTools` フォルダーごと**移動してください。
 - コード署名のないプログラムなので、Windows SmartScreen が「Windows によって PC が保護されました」と表示することがあります。**詳細情報 → 実行** を押してください。
-- **自動アップデート**（2.2.0 から）：NarewStudio と MOD マネージャーは起動時に新しいバージョンを確認し（6 時間に 1 回、オフにできます）、変更点を表示します。**업데이트**（アップデート）を押すとダウンロードして SHA-256 を確認し、プログラムを閉じるときに新しいファイルに置き換えて再起動します。置き換える前のファイルは `%LOCALAPPDATA%\NarewTools\update\backup-<バージョン>\` にバックアップし、失敗したら元に戻します。ヘッダー右のバージョンボタン（`v2.4.0`）ですぐに確認することもできます。`Program Files` など書き込めない場所にあるフォルダーは自動で更新できないので、ドキュメントなどに移してください。
+- **自動アップデート**（2.2.0 から）：NarewStudio と MOD マネージャーは起動時に新しいバージョンを確認し（6 時間に 1 回、オフにできます）、変更点を表示します。**업데이트**（アップデート）を押すとダウンロードして SHA-256 を確認し、プログラムを閉じるときに新しいファイルに置き換えて再起動します。置き換える前のファイルは `%LOCALAPPDATA%\NarewTools\update\backup-<バージョン>\` にバックアップし、失敗したら元に戻します。ヘッダー右のバージョンボタン（`v2.4.1`）ですぐに確認することもできます。`Program Files` など書き込めない場所にあるフォルダーは自動で更新できないので、ドキュメントなどに移してください。
 - 2.1.0 以前はフォルダーごと置き換えてください。設定・MOD プロジェクト・インストールした MOD はユーザーフォルダーに別途保存されているのでそのまま残ります（[ファイルの場所](#ファイルの場所)）。
 
 ## 初期設定
@@ -473,14 +473,16 @@ python tests\test_agent_live.py "<ゲームフォルダー>" D:\scratch\t_live
 
 | 内容 | 場所 |
 |---|---|
-| NarewStudio の設定・ログ | `%APPDATA%\NarewStudio\`（`log.txt`） |
+| NarewStudio の設定 · ログ | `Documents\NarewStudio\settings.json` · `%APPDATA%\NarewStudio\log.txt` |
 | MOD プロジェクト | `Documents\NarewStudio\Projects\`（新規 MOD 作成時に変更可） |
 | 保存/キャプチャしたワールド | `Documents\NarewStudio\Worlds\` |
 | マイワールドに適用する前のバックアップ | `Documents\NarewStudio\WorldBackups\` |
-| MOD マネージャー（インストールした MOD・設定・ログ） | `%LOCALAPPDATA%\NarewModManager\`（`mods\`、`settings.json`、`deployed.json`、`log.txt`） |
+| MOD マネージャー（インストールした MOD・設定 · ログ） | `Documents\NarewStudio\ModManager\`（`mods\`、`settings.json`、`deployed.json`） · `%LOCALAPPDATA%\NarewModManager\log.txt` |
 | MOD 適用時のオリジナルのバックアップ | `<ゲームフォルダー>\data\<パック>.pack.orig`、`<ゲームフォルダー>\<ファイル>.orig` |
-| AI エージェント ↔ ウィンドウの連携 | `%APPDATA%\NarewStudio\agent\`（ネットワーク・ポートは使わない） |
+| AI エージェント ↔ ウィンドウの連携 | `Documents\NarewStudio\agent\`（ネットワーク・ポートは使わない） |
 | 自動アップデート（設定・ダウンロード・バックアップ・記録） | `%APPDATA%\NarewTools\update.json` · `%LOCALAPPDATA%\NarewTools\update\` |
+
+NarewStudio・MOD マネージャー・AI エージェントが共有する設定とインストールした MOD は、2.4.0 までは AppData にありました。Claude デスクトップアプリのような Windows のパッケージ（MSIX）アプリから起動したエージェントは、AppData に作ったファイルを自分にしか見えないコピーに書き込むため、`Documents\NarewStudio\` に移しました。以前の場所の設定と MOD は最初の起動時に引き継ぎます。
 
 ## トラブルシューティング
 

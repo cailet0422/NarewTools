@@ -36,7 +36,8 @@ NarewStudio의 모든 기능을 AI 에이전트(Claude Code 등)가 **직접** �
 - 에이전트는 `studio_view`로 창이 지금 보여 주는 월드·카메라 위치·마우스 아래 칸·GUI 선택을 알 수 있다
   ("여기에 지어 줘"가 통한다). `world_open`을 인자 없이 부르면 창에 열린 월드를 연다.
 - `studio_show`로 에이전트가 결과 화면(월드·GUI·리소스 …)을 창에 띄운다.
-- 연결은 `%APPDATA%\NarewStudio\agent\`의 파일 두 개(events.json, gui.json)로 한다. 네트워크·포트는 쓰지 않는다.
+- 연결은 `문서\NarewStudio\agent\`의 파일 두 개(events.json, gui.json)로 한다. 네트워크·포트는 쓰지 않는다.
+  창과 같이 쓰는 설정(`문서\NarewStudio\settings.json`)과 설치한 모드(`문서\NarewStudio\ModManager\`)도 문서 폴더에 있다. Claude 데스크톱 앱 같은 Windows 패키지 앱에서 실행된 에이전트는 AppData에 만든 파일을 자기만 보는 사본에 쓰기 때문이다.
 
 ## 4. 안전장치
 

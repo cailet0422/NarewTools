@@ -2,7 +2,9 @@
 
 Model
 -----
-* Installed mods live in %LOCALAPPDATA%\\NarewModManager\\mods\\<id> (narew.modfmt layout).
+* Installed mods live in Documents\\NarewStudio\\ModManager\\mods\\<id> (narew.modfmt layout).  Up to 2.4.0
+  this was %LOCALAPPDATA%\\NarewModManager, which packaged apps see a private copy of (narew.paths.shared_dir);
+  adopt_legacy() brings what is there over.
 * settings.json keeps the game folder, deploy mode and the ordered mod list
   (first = highest priority) with enabled flags.
 * deployed.json records exactly what the last "apply" wrote, so it can be undone:
@@ -45,7 +47,7 @@ import time
 from narew import xmlmerge
 from narew.modfmt import ModError, ModFolder, entry_key, extract_zip
 from narew.pack import PackError, PackReader, PackWriter, write_atomic
-from narew.paths import load_json, manager_home, manager_mods_dir, save_json
+from narew.paths import load_json, manager_home, manager_local_dir, manager_mods_dir, save_json
 
 CLIENT_EXES = ('IsletClient_release(x64).exe', 'IsletClient_release.exe')
 # existing game files with these extensions are never replaced by a loose mod file
@@ -95,12 +97,56 @@ class GameBusy(Exception):
     pass
 
 
+def adopt_legacy(home: str, legacy: str) -> list[str]:
+    """Bring over what 2.4.0 and older kept in ``legacy`` (%LOCALAPPDATA%\\NarewModManager); returns the mod ids.
+
+    Runs at every start and only adds: mods ``home`` does not have (each one once, so a mod removed here does
+    not come back), the game folder and mode if unset, and the record of what is applied to the game if
+    ``home`` has none yet.  A program started from a packaged app sees that app's private copy of ``legacy``,
+    so its first start brings those mods over as well."""
+    if not os.path.isdir(legacy) or os.path.normcase(os.path.abspath(legacy)) == os.path.normcase(home):
+        return []
+    path = os.path.join(home, 'settings.json')
+    new = load_json(path, {})
+    old = load_json(os.path.join(legacy, 'settings.json'), {})
+    old_order = [e for e in old.get('mods', []) if isinstance(e, dict) and e.get('id')]
+    old_mods = os.path.join(legacy, 'mods')
+    names = sorted(os.listdir(old_mods)) if os.path.isdir(old_mods) else []
+    listed = [e['id'] for e in old_order]
+    names = [n for n in listed if n in names] + [n for n in names if n not in listed]
+    enabled = {e['id']: bool(e.get('enabled')) for e in old_order}
+    adopted = new.get('adopted', [])
+    order = new.get('mods', [])
+    got = []
+    for mid in names:
+        src = os.path.join(old_mods, mid)
+        if mid in adopted or not os.path.isfile(os.path.join(src, 'mod.json')):
+            continue
+        dest = os.path.join(home, 'mods', mid)
+        if not os.path.exists(dest):
+            shutil.rmtree(dest + '.adopting', ignore_errors=True)
+            shutil.copytree(src, dest + '.adopting')
+            os.replace(dest + '.adopting', dest)
+        adopted.append(mid)
+        if not any(e.get('id') == mid for e in order):
+            order.append({'id': mid, 'enabled': enabled.get(mid, False)})
+        got.append(mid)
+    fill = {k: old[k] for k in ('game', 'mode') if old.get(k) and not new.get(k)}
+    if got or fill:
+        save_json(path, {**new, **fill, 'mods': order, 'adopted': adopted})
+    state = load_json(os.path.join(legacy, 'deployed.json'), {})
+    if (state.get('packs') or state.get('loose')) and not os.path.exists(os.path.join(home, 'deployed.json')):
+        save_json(os.path.join(home, 'deployed.json'), state)
+    return got
+
+
 class Manager:
     def __init__(self):
         self.home = manager_home()
         self.mods_dir = manager_mods_dir()
         self.settings_path = os.path.join(self.home, 'settings.json')
         self.state_path = os.path.join(self.home, 'deployed.json')
+        adopt_legacy(self.home, manager_local_dir())
         self.settings = load_json(self.settings_path, {})
         self.settings.setdefault('mods', [])          # [{id, enabled}], first = highest priority
         self.settings.setdefault('mode', 'pack')

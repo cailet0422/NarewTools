@@ -10,7 +10,7 @@ import threading
 
 from narew import xmlmerge
 from narew.modfmt import ModError, ModFolder, ModInfo, entry_key
-from narew.paths import appdata, documents_dir, load_json, save_json
+from narew.paths import appdata, documents_dir, load_json, save_json, shared_dir
 
 from .game import LOOSE, GameInstall
 
@@ -46,8 +46,13 @@ def kind_of(name: str) -> str:
 
 class Studio:
     def __init__(self):
-        self.settings_path = os.path.join(appdata('NarewStudio'), 'settings.json')
-        self.settings = load_json(self.settings_path, {})
+        # shared with agents, so not in AppData (narew.paths.shared_dir); 2.4.0 and older kept it there
+        self.settings_path = os.path.join(shared_dir(), 'settings.json')
+        self.settings = load_json(self.settings_path, None)
+        if self.settings is None:
+            self.settings = load_json(os.path.join(appdata('NarewStudio'), 'settings.json'), {})
+            if self.settings:
+                self.save_settings()
         self.game: GameInstall | None = None
         self.project: ModFolder | None = None
         self._pfiles: dict[str, tuple[str, str]] | None = None

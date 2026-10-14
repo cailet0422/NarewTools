@@ -15,12 +15,14 @@ import sys
 GAME, PROJECT, SCRATCH = sys.argv[1], sys.argv[2], os.path.abspath(sys.argv[3])
 os.environ['APPDATA'] = os.path.join(SCRATCH, 'appdata')
 os.environ['LOCALAPPDATA'] = os.path.join(SCRATCH, 'localappdata')
+os.environ['USERPROFILE'] = os.path.join(SCRATCH, 'home')    # Documents\NarewStudio: shared settings, mods
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modmanager.core import Manager  # noqa: E402
 from narew import textcodec, xmlmerge  # noqa: E402
 from narew.modfmt import ModFolder, ModInfo  # noqa: E402
 from narew.pack import PackReader  # noqa: E402
+from narew.paths import manager_local_dir, manager_mods_dir, save_json  # noqa: E402
 
 PACKS = ('xml', 'gui', 'sky', 'patch')
 fake = os.path.join(SCRATCH, 'game')
@@ -138,6 +140,24 @@ after = digest_tree(fake)
 checks.append(('restore is byte-identical', after == before))
 if after != before:
     print('differs:', sorted(set(after.items()) ^ set(before.items()))[:10])
+
+# 2.4.0 and older kept everything in %LOCALAPPDATA%\NarewModManager (a packaged app sees its own copy):
+# a new home takes its mods, order, game folder and applied record over, each mod only once
+legacy = manager_local_dir()
+os.makedirs(os.path.join(legacy, 'mods'))
+shutil.copytree(m2.root, os.path.join(legacy, 'mods', 'second-mod'))
+save_json(os.path.join(legacy, 'settings.json'),
+          {'mods': [{'id': 'second-mod', 'enabled': True}], 'mode': 'pack', 'game': fake})
+save_json(os.path.join(legacy, 'deployed.json'), {'game': fake, 'packs': {'xml': {'files': 1}}, 'loose': []})
+os.environ['USERPROFILE'] = os.path.join(SCRATCH, 'home2')
+m3 = Manager()
+checks.append(('new home is in Documents\\NarewStudio', m3.home == os.path.join(SCRATCH, 'home2', 'NarewStudio', 'ModManager')))
+checks.append(('old mods adopted', [(m['id'], m['enabled']) for m in m3.installed()] == [('second-mod', True)]))
+checks.append(('old game folder and applied record adopted',
+               m3.game_root == fake and m3.status()['applied'] and m3.status()['applied_mods'] == []))
+m3.remove('second-mod')
+checks.append(('a removed mod is not adopted again', Manager().installed() == []))
+checks.append(('install from NarewStudio lands in the new home', manager_mods_dir() == m3.mods_dir))
 
 bad = [n for n, ok in checks if not ok]
 for n, ok in checks:

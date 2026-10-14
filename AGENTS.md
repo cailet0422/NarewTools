@@ -111,7 +111,7 @@ and marks the title "⚠". Open such saves with the game folder they were played
 | `studio/agent/context.py` | per-process state: Studio, world sessions, clipboards, follows the window's settings |
 | `studio/agent/render.py` | PNG views: world top/3D (offscreen OpenGL), GUI layouts (PIL), models, waveforms |
 | `studio/agent/mcp.py`, `cli.py` | MCP stdio server (stdlib only) and command line |
-| `studio/agent/live.py`, `studio/ui/agentlink.py` | link to the running window (`%APPDATA%\NarewStudio\agent\`) |
+| `studio/agent/live.py`, `studio/ui/agentlink.py` | link to the running window (`Documents\NarewStudio\agent\`) |
 | `studio/worldedit.py` | headless world editing + furniture rules shared with the 3D editor (`ui/worldview.py`) |
 | `studio/*.py` (svc_*, creator, guilayout, audio, savedworlds) | the studio services the tools call |
 
@@ -123,4 +123,7 @@ python tests/test_agent_live.py "<game folder>" <scratch dir>
 ```
 
 Run them after changing tools; `tests/test_place_products.py` covers the shared furniture rules in the 3D editor.
+A new test must point `APPDATA`, `LOCALAPPDATA` **and `USERPROFILE`** at its scratch dir: the settings, installed mods
+and window link that the window, the mod manager and agents share live in `Documents\NarewStudio\`
+(`narew.paths.shared_dir`), not AppData, because a packaged app (the Claude desktop app) gets a private AppData copy.
 Docs: `docs/09-ai-agents.md` (Korean, for the user), `docs/05-brick-formats.md` (world format), `docs/07-new-content.md`.

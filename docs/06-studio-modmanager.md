@@ -108,12 +108,13 @@
 - 게임 폴더에 원래 낱개로 있는 데이터 파일(`Language\string.xml` 등)을 바꿔야 하면 처음 한 번 `<파일>.orig`로 백업하고 바꾼다.
   "원본 복구"가 백업을 되돌린다. 실행 파일·DLL·팩, 게임 폴더 맨 위의 파일은 절대 덮어쓰지 않는다.
 - Steam 업데이트나 "게임 파일 무결성 확인"으로 팩·파일이 바뀌면 다음 실행 때 감지해서 오래된 백업을 버리고(새 파일이 원본) "다시 적용"을 안내한다.
-- 기록 위치: `%LOCALAPPDATA%\NarewModManager\` (`mods\`, `settings.json`, `deployed.json`, 오류 로그 `log.txt`).
+- 기록 위치: `문서\NarewStudio\ModManager\` (`mods\`, `settings.json`, `deployed.json`), 오류 로그는 `%LOCALAPPDATA%\NarewModManager\log.txt`.
+  2.4.0까지는 전부 `%LOCALAPPDATA%\NarewModManager\`에 있었다. Windows 패키지(MSIX) 앱(Claude 데스크톱 앱, Microsoft Store Python)에서 실행된 프로그램은 AppData에 새로 만든 파일을 자기만 보는 사본(`%LOCALAPPDATA%\Packages\<앱>\LocalCache\...`)에 쓰므로, 에이전트가 설치·적용한 모드가 사용자가 연 모드 매니저에 안 보였다. 그래서 NarewStudio 설정(`문서\NarewStudio\settings.json`), 창↔에이전트 연결(`문서\NarewStudio\agent\`)과 함께 문서 폴더로 옮겼다(`narew.paths.shared_dir`). 시작할 때마다 예전 위치에서 새 위치에 없는 모드(각각 한 번만 — 지운 모드는 다시 오지 않음), 게임 폴더·적용 방식, 새 위치에 아직 없는 적용 기록을 가져온다(`modmanager.core.adopt_legacy`).
 
 ### 3.1 자동 업데이트 (두 프로그램 공통, 2.2.0부터)
 
 - 켤 때 GitHub 최신 릴리스(`cailet0422/NarewTools`, 초안·사전 릴리스 제외)를 확인한다. 자동 확인은 6시간에 한 번이고, 알림 창의
-  "프로그램을 켤 때 업데이트 확인"으로 끈다. 머리줄 오른쪽 버전 버튼(`v2.4.0`)은 바로 확인한다.
+  "프로그램을 켤 때 업데이트 확인"으로 끈다. 머리줄 오른쪽 버전 버튼(`v2.4.1`)은 바로 확인한다.
 - 새 버전이면 바뀐 점(릴리스 설명)과 함께 업데이트 / 나중에 / 이 버전 건너뛰기를 묻는다.
 - 업데이트: 릴리스의 `NarewTools-<버전>.zip`을 받아 같은 릴리스의 `.zip.sha256`으로 확인하고
   `%LOCALAPPDATA%\NarewTools\update\<버전>\`에 푼다(폴더 밖을 가리키는 경로는 거부). 받은 주소는 이 저장소의 릴리스 다운로드만 허용한다.

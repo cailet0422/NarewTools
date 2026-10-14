@@ -23,6 +23,7 @@ shutil.rmtree(SCRATCH, ignore_errors=True)
 os.makedirs(SCRATCH)
 os.environ['APPDATA'] = os.path.join(SCRATCH, 'appdata')
 os.environ['LOCALAPPDATA'] = os.path.join(SCRATCH, 'localappdata')
+os.environ['USERPROFILE'] = os.path.join(SCRATCH, 'home')    # Documents\NarewStudio: shared settings, mods
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from narew.version import REPO, VERSION  # noqa: E402

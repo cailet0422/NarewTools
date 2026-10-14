@@ -10,6 +10,7 @@ import sys
 GAME, SCRATCH = sys.argv[1], os.path.abspath(sys.argv[2])
 os.environ['APPDATA'] = os.path.join(SCRATCH, 'appdata')
 os.environ['LOCALAPPDATA'] = os.path.join(SCRATCH, 'localappdata')
+os.environ['USERPROFILE'] = os.path.join(SCRATCH, 'home')    # Documents\NarewStudio: shared settings, mods
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PIL import Image  # noqa: E402
@@ -19,7 +20,13 @@ from studio import tables, textcodec  # noqa: E402
 from studio.core import Studio  # noqa: E402
 from studio.creator import Creator, Names, Recipe  # noqa: E402
 
+# 2.4.0 and older kept the settings in %APPDATA%\NarewStudio (a packaged app sees its own copy): taken over
+os.makedirs(os.path.join(SCRATCH, 'appdata', 'NarewStudio'), exist_ok=True)
+with open(os.path.join(SCRATCH, 'appdata', 'NarewStudio', 'settings.json'), 'w', encoding='utf-8') as f:
+    f.write('{"last_page": "blocks"}')
 st = Studio()
+adopted = (st.settings_path == os.path.join(SCRATCH, 'home', 'NarewStudio', 'settings.json')
+           and st.settings.get('last_page') == 'blocks')
 st.open_game(GAME)
 root = st.new_project(os.path.join(SCRATCH, 'projects'), ModInfo(id='creator-test', name='생성 테스트'))
 cr = Creator(st)
@@ -33,7 +40,7 @@ for name, color in (('top', (90, 200, 120)), ('side', (140, 90, 60))):
                 im.paste((min(255, color[0] + 40), color[1], color[2], 255), (x, y, x + 16, y + 16))
     im.save(os.path.join(SCRATCH, f'tex_{name}.png'))
 
-checks = []
+checks = [('settings in Documents\\NarewStudio, old ones taken over', adopted)]
 free_b = cr.free_brick_ids()
 free_p = cr.free_product_ids()
 print('free brick ids', len(free_b), free_b[:5], '| free product ids', len(free_p), free_p[:3], free_p[-3:],

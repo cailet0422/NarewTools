@@ -1,6 +1,7 @@
 """Link between agent processes and a running NarewStudio window.
 
-Two small files in %APPDATA%\\NarewStudio\\agent\\ (no sockets, nothing to configure):
+Two small files in Documents\\NarewStudio\\agent\\ (no sockets, nothing to configure; not in AppData, of which
+an agent started from a packaged app such as the Claude desktop app sees a private copy - narew.paths.shared_dir):
 
 * events.json - agents append what they changed (resource names, world files, the project they
   switched to) and requests to show something; the window polls it and reloads / opens pages.
@@ -12,16 +13,14 @@ from __future__ import annotations
 import os
 import time
 
-from narew.paths import appdata, load_json, save_json
+from narew.paths import load_json, save_json, shared_dir
 
 KEEP = 200
 GUI_STALE = 8.0            # seconds without a heartbeat = window closed
 
 
 def live_dir() -> str:
-    p = os.path.join(appdata('NarewStudio'), 'agent')
-    os.makedirs(p, exist_ok=True)
-    return p
+    return shared_dir('agent')
 
 
 def _events_path() -> str:

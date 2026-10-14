@@ -104,6 +104,7 @@ def selftest(folder: str):
     shutil.rmtree(scratch, ignore_errors=True)
     os.makedirs(scratch)
     env['APPDATA'] = env['LOCALAPPDATA'] = scratch       # do not touch the user's settings
+    env['USERPROFILE'] = os.path.join(scratch, 'home')   # nor Documents\NarewStudio (shared settings, mods)
     for name, *_, console in APPS:
         exe = os.path.join(folder, name + '.exe')
         if console:                                    # the agent: one MCP handshake + tools/list

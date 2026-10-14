@@ -16,6 +16,7 @@ from ctypes import wintypes
 GAME, SAVE, SCRATCH = sys.argv[1], sys.argv[2], os.path.abspath(sys.argv[3])
 os.environ['APPDATA'] = os.path.join(SCRATCH, 'appdata')
 os.environ['LOCALAPPDATA'] = os.path.join(SCRATCH, 'localappdata')
+os.environ['USERPROFILE'] = os.path.join(SCRATCH, 'home')    # Documents\NarewStudio: shared settings, mods
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtCore import QThreadPool  # noqa: E402

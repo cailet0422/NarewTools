@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import time
 
-from narew.paths import appdata, load_json
+from narew.paths import appdata, load_json, shared_dir
 
 from ..core import Studio, StudioError
 from . import live
@@ -49,7 +49,7 @@ class AgentContext:
         self._n_session = self._n_clip = 0
         self._gl = None
         self._cache: dict = {}
-        self.out_dir = os.path.join(live.live_dir(), 'out')
+        self.out_dir = os.path.join(appdata('NarewStudio'), 'agent', 'out')      # pictures for the agent only
         os.makedirs(self.out_dir, exist_ok=True)
         self._clean_out()
 
@@ -158,4 +158,4 @@ class AgentContext:
 
     @staticmethod
     def settings_dir() -> str:
-        return appdata('NarewStudio')
+        return shared_dir()

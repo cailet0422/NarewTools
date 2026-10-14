@@ -104,7 +104,7 @@ NarewTools\
 
 - 三个 exe 共用 `_internal` 文件夹，移动时请**整个 `NarewTools` 文件夹**一起移动。
 - 程序没有数字签名，Windows SmartScreen 可能会显示"Windows 已保护你的电脑"。点击 **更多信息 → 仍要运行** 即可。
-- **自动更新**（2.2.0 起）：NarewStudio 和模组管理器启动时会检查新版本（最多每 6 小时一次，可关闭），并显示更新内容。点击 **업데이트**（更新）会下载并校验 SHA-256，在关闭程序时替换为新文件并重新启动。替换前的文件备份到 `%LOCALAPPDATA%\NarewTools\update\backup-<版本>\`，出错时恢复原文件。也可以点击标题栏右侧的版本按钮（`v2.4.0`）立即检查。放在 `Program Files` 等不可写位置的文件夹无法自动更新，请移到"文档"等位置。
+- **自动更新**（2.2.0 起）：NarewStudio 和模组管理器启动时会检查新版本（最多每 6 小时一次，可关闭），并显示更新内容。点击 **업데이트**（更新）会下载并校验 SHA-256，在关闭程序时替换为新文件并重新启动。替换前的文件备份到 `%LOCALAPPDATA%\NarewTools\update\backup-<版本>\`，出错时恢复原文件。也可以点击标题栏右侧的版本按钮（`v2.4.1`）立即检查。放在 `Program Files` 等不可写位置的文件夹无法自动更新，请移到"文档"等位置。
 - 2.1.0 及以下版本请直接替换整个文件夹。设置、模组项目和已安装的模组保存在用户文件夹中，不受影响（见[文件位置](#文件位置)）。
 
 ## 首次设置
@@ -472,14 +472,16 @@ python tests\test_agent_live.py "<游戏文件夹>" D:\scratch\t_live
 
 | 内容 | 位置 |
 |---|---|
-| NarewStudio 设置与日志 | `%APPDATA%\NarewStudio\`（`log.txt`） |
+| NarewStudio 设置 · 日志 | `Documents\NarewStudio\settings.json` · `%APPDATA%\NarewStudio\log.txt` |
 | 模组项目 | `Documents\NarewStudio\Projects\`（新建模组时可更改） |
 | 保存/捕获的世界 | `Documents\NarewStudio\Worlds\` |
 | 应用到我的世界前的备份 | `Documents\NarewStudio\WorldBackups\` |
-| 模组管理器（已安装模组、设置、日志） | `%LOCALAPPDATA%\NarewModManager\`（`mods\`、`settings.json`、`deployed.json`、`log.txt`） |
+| 模组管理器（已安装模组、设置 · 日志） | `Documents\NarewStudio\ModManager\`（`mods\`、`settings.json`、`deployed.json`） · `%LOCALAPPDATA%\NarewModManager\log.txt` |
 | 应用模组时的原版备份 | `<游戏文件夹>\data\<包>.pack.orig`、`<游戏文件夹>\<文件>.orig` |
-| AI 智能体 ↔ 窗口连接 | `%APPDATA%\NarewStudio\agent\`（不使用网络或端口） |
+| AI 智能体 ↔ 窗口连接 | `Documents\NarewStudio\agent\`（不使用网络或端口） |
 | 自动更新（设置 · 下载、备份、日志） | `%APPDATA%\NarewTools\update.json` · `%LOCALAPPDATA%\NarewTools\update\` |
+
+NarewStudio、模组管理器和 AI 智能体共用的设置与已安装模组在 2.4.0 及以前保存在 AppData。从 Claude 桌面应用等 Windows 打包（MSIX）应用中启动的智能体，会把它在 AppData 中新建的文件写入只有它自己能看到的副本，因此改为保存在 `Documents\NarewStudio\`。旧位置的设置和模组会在首次启动时迁移过来。
 
 ## 常见问题
 

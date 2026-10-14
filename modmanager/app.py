@@ -8,8 +8,9 @@ import sys
 def _log_when_frozen():
     """A windowed build has no console; keep tracebacks in a log file."""
     if getattr(sys, 'frozen', False) and (sys.stdout is None or sys.stderr is None):
-        from narew.paths import manager_home
-        f = open(os.path.join(manager_home(), 'log.txt'), 'a', encoding='utf-8', buffering=1)
+        from narew.paths import manager_local_dir
+        os.makedirs(manager_local_dir(), exist_ok=True)
+        f = open(os.path.join(manager_local_dir(), 'log.txt'), 'a', encoding='utf-8', buffering=1)
         sys.stdout = sys.stderr = f
 
 
