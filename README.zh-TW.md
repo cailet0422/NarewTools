@@ -104,7 +104,7 @@ NarewTools\
 
 - 三個 exe 共用 `_internal` 資料夾，移動時請**整個 `NarewTools` 資料夾**一起移動。
 - 程式沒有數位簽章，Windows SmartScreen 可能會顯示「Windows 已保護您的電腦」。點選 **其他資訊 → 仍要執行** 即可。
-- **自動更新**（2.2.0 起）：NarewStudio 與模組管理器啟動時會檢查新版本（最多每 6 小時一次，可關閉），並顯示更新內容。點選 **업데이트**（更新）會下載並驗證 SHA-256，在關閉程式時替換為新檔案並重新啟動。替換前的檔案備份到 `%LOCALAPPDATA%\NarewTools\update\backup-<版本>\`，出錯時還原原檔案。也可以點選標題列右側的版本按鈕（`v2.4.1`）立即檢查。放在 `Program Files` 等無法寫入位置的資料夾無法自動更新，請移到「文件」等位置。
+- **自動更新**（2.2.0 起）：NarewStudio 與模組管理器啟動時會檢查新版本（最多每 6 小時一次，可關閉），並顯示更新內容。點選 **업데이트**（更新）會下載並驗證 SHA-256，在關閉程式時替換為新檔案並重新啟動。替換前的檔案備份到 `%LOCALAPPDATA%\NarewTools\update\backup-<版本>\`，出錯時還原原檔案。也可以點選標題列右側的版本按鈕（`v2.5.0`）立即檢查。放在 `Program Files` 等無法寫入位置的資料夾無法自動更新，請移到「文件」等位置。
 - 2.1.0 及以下版本請直接替換整個資料夾。設定、模組專案與已安裝的模組儲存在使用者資料夾中，不受影響（見[檔案位置](#檔案位置)）。
 
 ## 首次設定
@@ -258,7 +258,7 @@ NarewStudio 每次開啟模組時都會重新計算可用編號。遊戲更新�
 | 散檔（實驗性） | 把模組檔案以散檔形式放到遊戲資料夾中，不動封包。僅驗證過 GUI 圖片 |
 
 - **表格合併**：依優先順序由低到高，依序套用已啟用模組的 `merge\` 修補。兩個模組修改同一項目時，上面的模組生效。保留原編碼與換行字元。
-- 遊戲資料夾中的散資料檔（`Language\string.xml` 等）第一次修改前會備份為 `<檔案>.orig`。絕不修改執行檔與 DLL。
+- 遊戲資料夾中的散資料檔（`Language\string.xml` 等）第一次修改前會備份為 `<檔案>.orig`。絕不修改執行檔。引擎 DLL 只由**含程式碼修補的模組（格式 3）**修改，修改前先備份一次為 `<dll>.orig`；只有原始位元組與 DLL 版本（SHA-256）相符時才寫入，一個修補檔要嘛寫入它的所有 DLL，要嘛一個都不寫。遊戲更新導致版本改變時會略過該修補。
 - 當 **Steam 更新**或「驗證遊戲檔案完整性」變更了檔案時，下次啟動會偵測並提示。屆時請再次點選 **게임에 적용**（套用到遊戲）。
 
 ## 模組格式
@@ -275,6 +275,8 @@ my-mod/
   merge/          逐項新增或修改遊戲表格（XML）的修補
     XML/item_table.xml
     Language/string.xml
+  patches/        （格式 3）引擎 DLL 程式碼修補 — 只修改經過驗證的原始位元組
+    free_camera.json
 ```
 
 `merge\` 修補範例（UTF-8）。有相同鍵值的項目時整項取代，否則附加到表格最後。
@@ -291,6 +293,7 @@ my-mod/
 - `merge\` 逐項生效，因此多個模組可以各自在同一張表格新增項目。
 - **請勿整個發佈原版遊戲檔案。** 只放入你修改或新建的內容（NarewStudio 的「배포용 .zip 만들기」就是這樣產生的）。
 - 詳細規則（韓文）：[docs/07-new-content.md](docs/07-new-content.md)
+- `patches\` 用於修改寫在引擎程式碼而不是資料裡的行為（例如視野距離段位、自由視角）。目標只能是四個引擎 DLL，用戶端 exe 與 Steam 檔案會被拒絕。格式與安全規則（韓文）：[docs/10-code-patches.md](docs/10-code-patches.md)
 
 ## 連接 AI 代理
 
@@ -503,6 +506,7 @@ NarewStudio、模組管理器與 AI 代理共用的設定和已安裝模組在 2
 | 替換 UI 音效、修改 GUI 圖片與配置 | ✅ 已在遊戲中驗證 |
 | 世界編輯（方塊、家具）+ 套用到我的世界 | ✅ 已在遊戲中驗證 |
 | 大於 1024 的世界（最大 4096×4096，`world_new`） | ✅ 已在遊戲中驗證 |
+| 引擎程式碼修補（`patches\`：視野距離滑桿與區域載入、自由視角） | ✅ 已在遊戲中驗證 |
 | 修改後的模型/動畫在遊戲中載入 | ⚠ 尚未驗證 |
 | 「新物品」一般物品的效果、天氣/時間背景音樂 | ⚠ 尚未驗證 |
 | 多人遊戲 | ⚠ 尚未驗證 |
@@ -518,7 +522,7 @@ narew/       格式函式庫 + 命令列工具（pack、brick、模型 ↔ glTF�
 studio/      NarewStudio —— core、svc_*、creator（新內容）、worldedit（無介面世界編輯）、gl/（OpenGL）、ui/（Qt）、agent/（AI 代理）
 modmanager/  NarewModManager —— core（套用引擎）、ui
 tests/       測試（使用假遊戲資料夾）
-tools/       build_exe.py（建置 exe）、PE/RTTI 分析與模型驗證腳本
+tools/       build_exe.py（建置 exe）、mod_view_distance.py / mod_freecam.py（產生程式碼修補範例模組）、PE/RTTI 分析與模型驗證腳本
 docs/        技術文件（韓文）
 AGENTS.md    給 AI 代理的說明；.mcp.json = Claude Code 的 MCP 伺服器註冊
 ```
@@ -534,6 +538,7 @@ AGENTS.md    給 AI 代理的說明；.mcp.json = Claude Code 的 MCP 伺服器�
 | [07 新內容](docs/07-new-content.md) | 引擎上限、表格合併規則 |
 | [08 GUI 配置](docs/08-gui-layout.md) | 編輯 `Gui\*.xml` |
 | [09 AI 代理](docs/09-ai-agents.md) | 113 個工具、連接、安全機制 |
+| [10 程式碼修補](docs/10-code-patches.md) | 模組格式 3 `patches/`、視野距離滑桿與自由視角的分析 |
 
 文件中提到的 `re/` 分析產物（遊戲二進位傾印、反編譯結果）未包含在本儲存庫中。
 

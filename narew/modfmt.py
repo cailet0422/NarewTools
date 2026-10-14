@@ -7,6 +7,8 @@ A mod is a folder (or a .zip of that folder) laid out as:
                         (e.g. files/gui_skin/19_Login_Create/morenori.png)
     merge/              record-level additions to data tables (narew.xmlmerge),
                         e.g. merge/XML/item_table.xml, merge/Language/string.xml
+    patches/            checked byte patches of the engine DLLs (narew.codepatch), e.g.
+                        patches/view_distance.json; a mod with patches is saved as format 3
     preview.png         optional thumbnail
 
 Entry names inside packs use '\\' separators and the engine matches them
@@ -25,10 +27,12 @@ from dataclasses import asdict, dataclass, field
 
 from .pack import name_key
 
-FORMAT_VERSION = 2          # 2: merge/ folder
+FORMAT_VERSION = 3          # newest format read here. 2: merge/ folder, 3: patches/ folder
+BASE_FORMAT = 2             # what a mod without code patches is saved as, so older tools still take it
 MOD_JSON = 'mod.json'
 FILES_DIR = 'files'
 MERGE_DIR = 'merge'
+PATCHES_DIR = 'patches'
 PREVIEW = 'preview.png'
 _ID_RE = re.compile(r'^[a-z0-9][a-z0-9._-]{0,63}$')
 MAX_ZIP_FILES = 100_000
@@ -74,7 +78,7 @@ class ModInfo:
     author: str = ''
     description: str = ''
     game: str = 'islet-online'
-    format: int = FORMAT_VERSION
+    format: int = BASE_FORMAT
     tags: list[str] = field(default_factory=list)
 
     def validate(self):
@@ -104,6 +108,7 @@ class ModFolder:
         self.root = os.path.abspath(root)
         self.files_root = os.path.join(self.root, FILES_DIR)
         self.merge_root = os.path.join(self.root, MERGE_DIR)
+        self.patches_root = os.path.join(self.root, PATCHES_DIR)
 
     # ---- metadata
     @property
@@ -234,6 +239,47 @@ class ModFolder:
         os.remove(hit[1])
         return True
 
+    # ---- engine code patches (patches/)
+    def iter_patches(self):
+        """Yield (patch name, absolute path of patches/<name>.json)."""
+        if not os.path.isdir(self.patches_root):
+            return
+        for fn in sorted(os.listdir(self.patches_root)):
+            full = os.path.join(self.patches_root, fn)
+            if fn.lower().endswith('.json') and os.path.isfile(full):
+                yield fn[:-5], full
+
+    def write_patch(self, name: str, text: str):
+        """Save patches/<name>.json (checked with narew.codepatch) and mark the mod as format 3."""
+        from . import codepatch
+        if not re.fullmatch(r'[A-Za-z0-9._-]{1,64}', name):
+            raise ModError(f'패치 이름은 영문/숫자/._- 만 가능합니다: {name!r}')
+        try:
+            codepatch.parse(text, name)
+        except codepatch.CodePatchError as ex:
+            raise ModError(str(ex))
+        os.makedirs(self.patches_root, exist_ok=True)
+        p = os.path.join(self.patches_root, name + '.json')
+        with open(p + '.tmp', 'w', encoding='utf-8', newline='\n') as f:
+            f.write(text)
+        os.replace(p + '.tmp', p)
+        info = self.read_info()
+        if info.format < 3:
+            info.format = 3
+            self.write_info(info)
+
+    def remove_patch(self, name: str) -> bool:
+        p = os.path.join(self.patches_root, name + '.json')
+        if not os.path.isfile(p):
+            return False
+        os.remove(p)
+        if not any(True for _ in self.iter_patches()):
+            info = self.read_info()
+            if info.format > BASE_FORMAT:
+                info.format = BASE_FORMAT
+                self.write_info(info)
+        return True
+
     # ---- packaging
     def export_zip(self, out_path: str) -> int:
         info = self.read_info()
@@ -249,6 +295,9 @@ class ModFolder:
                 n += 1
             for name, full in self.iter_merges():
                 z.write(full, MERGE_DIR + '/' + name.replace('\\', '/'))
+                n += 1
+            for name, full in self.iter_patches():
+                z.write(full, PATCHES_DIR + '/' + name + '.json')
                 n += 1
         os.replace(tmp, out_path)
         return n
@@ -268,7 +317,8 @@ def read_zip_info(zip_path: str) -> tuple[ModInfo, str]:
 
 
 def extract_zip(zip_path: str, dest: str) -> ModFolder:
-    """Safely unpack a mod zip into dest (must not exist). Only mod.json, preview.png, files/ and merge/ are taken."""
+    """Safely unpack a mod zip into dest (must not exist). Only mod.json, preview.png, files/, merge/ and
+    patches/*.json are taken."""
     info, prefix = read_zip_info(zip_path)
     if os.path.exists(dest):
         raise ModError(f'이미 존재합니다: {dest}')
@@ -289,6 +339,9 @@ def extract_zip(zip_path: str, dest: str) -> ModFolder:
                     top, _, sub = rel.partition('/')
                     sub = check_rel_path(sub)
                     target = os.path.join(tmp, top, *sub.split('/'))
+                elif rel.startswith(PATCHES_DIR + '/') and re.fullmatch(r'[A-Za-z0-9._-]{1,64}\.json',
+                                                                        rel[len(PATCHES_DIR) + 1:]):
+                    target = os.path.join(tmp, PATCHES_DIR, rel[len(PATCHES_DIR) + 1:])
                 else:
                     continue
                 count += 1

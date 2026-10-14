@@ -20,7 +20,8 @@ def project_summary(ctx) -> dict | None:
     except Exception as ex:
         info = {'error': str(ex)}
     return {'root': st.project.root, **info, 'changed_files': len(st.project_files()),
-            'table_patches': len(st.project_merges())}
+            'table_patches': len(st.project_merges()),
+            'code_patches': [name for name, _ in st.project.iter_patches()]}
 
 
 @tool('status', 'core',

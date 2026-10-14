@@ -83,8 +83,9 @@ class ProjectPage(QWidget):
         self.lay.addWidget(label('게임에 적용하려면 "모드 매니저에 설치"를 누른 뒤 NarewModManager에서 "게임에 적용"을 누르세요 (설치한 모드는 켜진 채로 맨 위에 들어갑니다).', faint=True))
         changes = R.changes(st)
         added = Creator(st).added()
-        self.lay.addWidget(label(f'바뀐 파일 {sum(1 for c in changes if not c["merge"])}개 · 표에 추가/수정한 항목 {len(added)}개',
-                                 title=True))
+        npt = sum(1 for _ in st.project.iter_patches())
+        self.lay.addWidget(label(f'바뀐 파일 {sum(1 for c in changes if not c["merge"])}개 · 표에 추가/수정한 항목 {len(added)}개'
+                                 + (f' · 엔진 코드 패치 {npt}개 (patches\\)' if npt else ''), title=True))
         t = QTableWidget(len(changes), 5)
         t.setHorizontalHeaderLabels(['파일', '상태', '위치', '크기', ''])
         t.verticalHeader().hide()

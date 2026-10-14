@@ -33,7 +33,8 @@ def manager_status(ctx):
     st = m.status()
     return {'game': m.game_root, 'mode': m.settings.get('mode', 'pack'), 'mods': _mods(m),
             'applied': st['applied'], 'in_sync': st['in_sync'], 'stale': st['stale'],
-            'applied_mods': st['applied_mods'], 'patched_packs': sorted(st['packs']), 'loose_files': st['loose']}
+            'applied_mods': st['applied_mods'], 'patched_packs': sorted(st['packs']), 'loose_files': st['loose'],
+            'patched_dlls': st['binaries']}
 
 
 @tool('manager_install_project', 'manager',
@@ -64,8 +65,9 @@ def manager_set_mod(ctx, id, enabled, priority):
 
 
 @tool('manager_apply', 'manager',
-      'Apply the enabled mods to the game install (packs rebuilt from .orig backups, tables merged). The game must '
-      'be closed. Without confirm=true it only lists what would change. Ask the user before confirming.', game=True,
+      'Apply the enabled mods to the game install (packs rebuilt from .orig backups, tables merged, engine DLL code '
+      'patches checked and written after a .orig backup). The game must be closed. Without confirm=true it only lists '
+      'what would change. Ask the user before confirming.', game=True,
       confirm=BOOL('Really write to the game.', False))
 def manager_apply(ctx, confirm):
     m = _mgr()
@@ -75,12 +77,19 @@ def manager_apply(ctx, confirm):
         win, conflicts = m.winners()
         merges = m.merges()
         packs = {}
-        index, _ = m.pack_index(m.game_root)
+        index, sources = m.pack_index(m.game_root)
         for k, (name, _, mod) in win.items():
-            packs.setdefault(index.get(k, 'loose/new'), []).append(name)
+            stem = index.get(k)
+            if stem is None:                # a new file goes into the pack named by its top folder (as apply)
+                top = name.split('\\', 1)
+                stem = top[0].lower() if len(top) > 1 and top[0].lower() in sources else 'loose/new'
+            packs.setdefault(stem, []).append(name)
+        rep = {'skipped': []}
+        bins = m.plan_binaries(m.game_root, rep)
         return {'dry_run': True, 'game': m.game_root, 'enabled_mods': [r['id'] for r in _mods(m) if r['enabled']],
                 'files_by_pack': {p: (len(v), v[:20]) for p, v in packs.items()},
                 'table_merges': {v[0]: [mod for mod, _ in v[1]] for v in merges.values()},
+                'code_patches': {f: used for f, (_, used) in bins.items()}, 'code_patches_skipped': rep['skipped'],
                 'conflicts': {k: v for k, v in list(conflicts.items())[:30]}, 'game_running': m.game_running(),
                 'next': 'ask the user, then call again with confirm=true'}
     r = m.apply()

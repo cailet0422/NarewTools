@@ -31,10 +31,18 @@ to the highest priority, so on a record both touch the higher mod wins.
 
 Game files that already exist loose in the game folder (``Language\\string.xml``) are overwritten
 only after a one-time ``<file>.orig`` backup, which "restore" puts back.  Executables, libraries
-and files in the game folder itself are never overwritten.
+and files in the game folder itself are never overwritten by mod files.
 
-If a patched pack no longer matches what we wrote (Steam update or "verify files"), the live
-pack is the new original: the stale backup is discarded and the user is asked to apply again.
+Code patches (mod format 3)
+---------------------------
+A mod's ``patches/<name>.json`` (narew.codepatch) changes a few checked bytes of an engine DLL.
+Like packs, the DLL is backed up once as ``<dll>.orig`` and rebuilt from that backup on every apply:
+patch files of the enabled mods go in from the highest priority down, each one whole or not at all,
+over every DLL it names (wrong game version, bytes another mod already changed -> skipped and reported).  A DLL that no
+longer gets patches is restored from its backup.
+
+If a patched pack or DLL no longer matches what we wrote (Steam update or "verify files"), the
+live file is the new original: the stale backup is discarded and the user is asked to apply again.
 """
 from __future__ import annotations
 
@@ -44,7 +52,7 @@ import shutil
 import subprocess
 import time
 
-from narew import xmlmerge
+from narew import codepatch, xmlmerge
 from narew.modfmt import ModError, ModFolder, entry_key, extract_zip
 from narew.pack import PackError, PackReader, PackWriter, write_atomic
 from narew.paths import load_json, manager_home, manager_local_dir, manager_mods_dir, save_json
@@ -97,6 +105,11 @@ class GameBusy(Exception):
     pass
 
 
+def _deployed(state: dict) -> bool:
+    """Something of ours is in the game folder (patched packs, loose files or patched DLLs)."""
+    return bool(state.get('packs') or state.get('loose') or state.get('binaries'))
+
+
 def adopt_legacy(home: str, legacy: str) -> list[str]:
     """Bring over what 2.4.0 and older kept in ``legacy`` (%LOCALAPPDATA%\\NarewModManager); returns the mod ids.
 
@@ -135,7 +148,7 @@ def adopt_legacy(home: str, legacy: str) -> list[str]:
     if got or fill:
         save_json(path, {**new, **fill, 'mods': order, 'adopted': adopted})
     state = load_json(os.path.join(legacy, 'deployed.json'), {})
-    if (state.get('packs') or state.get('loose')) and not os.path.exists(os.path.join(home, 'deployed.json')):
+    if _deployed(state) and not os.path.exists(os.path.join(home, 'deployed.json')):
         save_json(os.path.join(home, 'deployed.json'), state)
     return got
 
@@ -178,7 +191,7 @@ class Manager:
         if not looks_like_game(root):
             raise ModError(f'아일렛 온라인 설치 폴더가 아닙니다: {root}')
         if self.state.get('game') and os.path.normcase(self.state['game']) != os.path.normcase(root) \
-                and (self.state.get('packs') or self.state.get('loose')):
+                and _deployed(self.state):
             raise ModError('다른 게임 폴더에 적용된 모드가 있습니다. 먼저 "원본 복구"를 하세요.')
         self.settings['game'] = root
         self.save_settings()
@@ -247,6 +260,9 @@ class Manager:
             t = dst.merge_path(name)
             os.makedirs(os.path.dirname(t), exist_ok=True)
             shutil.copy2(full, t)
+        for name, full in src.iter_patches():
+            os.makedirs(dst.patches_root, exist_ok=True)
+            shutil.copy2(full, os.path.join(dst.patches_root, name + '.json'))
         os.makedirs(os.path.join(tmp, 'files'), exist_ok=True)
         os.replace(tmp, dest)
         self.add_to_order(info.id)
@@ -297,6 +313,65 @@ class Manager:
                 out.setdefault(entry_key(name), (name, []))[1].append((m['id'], full))
         return out
 
+    def code_patches(self) -> tuple[list[tuple[str, codepatch.PatchFile]], list[str]]:
+        """([(mod id, patch file)] of the enabled mods, highest priority first; problems reading them)."""
+        out, bad = [], []
+        for m in self.installed():
+            if not m['enabled'] or 'info' not in m:
+                continue
+            for name, full in m['folder'].iter_patches():
+                try:
+                    out.append((m['id'], codepatch.load(full)))
+                except (OSError, codepatch.CodePatchError) as ex:
+                    bad.append(f'{m["id"]}/{name} ({ex})')
+        return out, bad
+
+    def plan_binaries(self, root: str, report: dict) -> dict[str, tuple[bytes, list[str]]]:
+        """What apply() writes into the engine DLLs: {file name: (patched bytes, ['mod/patch', ...])}.
+        Files without any patch that fits are left out (and restored if we had patched them)."""
+        patches, bad = self.code_patches()
+        report['skipped'] += [f'코드 패치 {b}' for b in bad]
+        pristine: dict[str, bytes | None] = {}
+
+        def untouched(fname: str) -> bytes | None:
+            if fname not in pristine:
+                live = os.path.join(root, fname)
+                src = live + '.orig' if os.path.isfile(live + '.orig') else live
+                pristine[fname] = None
+                if os.path.isfile(src):
+                    with open(src, 'rb') as f:
+                        pristine[fname] = f.read()
+            return pristine[fname]
+
+        bufs: dict[str, bytearray] = {}
+        used: dict[str, list[str]] = {}
+        taken: dict[str, list[tuple[int, int]]] = {}
+        for mod, pf in patches:                             # highest priority first
+            # a patch file goes in whole or not at all, over every DLL it names: code in one DLL
+            # may call code or read data the same file puts into another
+            planned = []
+            try:
+                for t in pf.targets:
+                    data = untouched(t.file)
+                    if data is None:
+                        raise codepatch.CodePatchError(f'{t.file} 없음')
+                    spans = codepatch.spans(data, t)
+                    mine = [s for f, _, ss, _ in planned if f == t.file for s in ss]
+                    if any(a < d and c < b for a, b in spans for c, d in taken.get(t.file, []) + mine):
+                        raise codepatch.CodePatchError('더 위의 모드가 이미 같은 코드를 바꿉니다')
+                    planned.append((t.file, data, spans, codepatch.plan(data, t)))
+            except codepatch.CodePatchError as ex:
+                report['skipped'].append(f'코드 패치 {mod}/{pf.name}: {ex}')
+                continue
+            for fname, data, spans, plan in planned:
+                buf = bufs.setdefault(fname, bytearray(data))
+                for o, p in plan:
+                    buf[o:o + len(p.patched)] = p.patched
+                taken.setdefault(fname, []).extend(spans)
+                if f'{mod}/{pf.name}' not in used.setdefault(fname, []):
+                    used[fname].append(f'{mod}/{pf.name}')
+        return {fname: (bytes(buf), used[fname]) for fname, buf in bufs.items()}
+
     def _merge_base(self, root: str, name: str, key: str, win: dict, index: dict, sources: dict) -> bytes | None:
         """Pristine content a table patch applies to (see module doc)."""
         if key in win:
@@ -346,8 +421,18 @@ class Manager:
         """Detect game files replaced behind our back (game update / file verification)."""
         root = self.game_root
         out = {'updated': [], 'missing_loose': []}
-        if not root or not (self.state.get('packs') or self.state.get('loose')):
+        if not root or not _deployed(self.state):
             return out
+        for fname, rec in list(self.state.get('binaries', {}).items()):
+            live = os.path.join(root, fname)
+            if _sig(live) != rec.get('written'):
+                # Steam put a new (or the original) DLL in: that is the original from now on
+                out['updated'].append(fname)
+                if os.path.isfile(live) and os.path.isfile(live + '.orig'):
+                    os.remove(live + '.orig')
+                del self.state['binaries'][fname]
+                self.state['stale'] = True
+                self.save_state()
         data = os.path.join(root, 'data')
         for stem, rec in list(self.state.get('packs', {}).items()):
             live = os.path.join(data, stem + '.pack')
@@ -435,8 +520,9 @@ class Manager:
         self.check()
         mode = self.settings.get('mode', 'pack')
         report = {'packs': {}, 'restored': [], 'loose': 0, 'skipped': [], 'conflicts': 0, 'merged': {},
-                  'overridden': []}
+                  'overridden': [], 'binaries': {}}
         out, index, sources = self.plan(root, report)
+        bins = self.plan_binaries(root, report)
         data = os.path.join(root, 'data')
         per_pack: dict[str, list] = {}
         loose: list[tuple[str, str | bytes]] = []
@@ -453,7 +539,7 @@ class Manager:
         self._guard()
         prev_packs = dict(self.state.get('packs', {}))
         self.state['game'] = root
-        steps = len(per_pack) + len(prev_packs) + 1
+        steps = len(per_pack) + len(prev_packs) + 2
         done = 0
 
         def tick(msg):
@@ -531,12 +617,42 @@ class Manager:
                 self._remove_loose(root, e)
                 recorded.pop(p)
         report['loose'] = len(new_loose)
+        self.state['loose'] = new_loose
+        self.save_state()
         tick('낱개 파일')
-        self.state = {'game': root, 'mode': mode, 'packs': cur, 'loose': new_loose,
+        # 4) engine DLLs: rebuilt from the untouched backup, or put back when no patch is left
+        binaries = dict(self.state.get('binaries', {}))
+        for fname in list(binaries):
+            if fname not in bins:
+                self._restore_binary(root, fname)
+                binaries.pop(fname)
+                self.state['binaries'] = binaries
+                self.save_state()
+                report['restored'].append(fname)
+        for fname, (data, used) in sorted(bins.items()):
+            live = os.path.join(root, fname)
+            orig = live + '.orig'
+            if not os.path.isfile(orig):
+                shutil.copy2(live, orig + '.tmp')
+                os.replace(orig + '.tmp', orig)
+            with open(live + '.tmp', 'wb') as f:
+                f.write(data)
+            os.replace(live + '.tmp', live)
+            binaries[fname] = {'written': _sig(live), 'patches': used}
+            self.state['binaries'] = binaries
+            self.save_state()
+            report['binaries'][fname] = used
+        tick('코드 패치')
+        self.state = {'game': root, 'mode': mode, 'packs': cur, 'loose': new_loose, 'binaries': binaries,
                       'mods': [m['id'] for m in self.installed() if m['enabled']],
                       'config': self.config_digest(), 'time': time.time()}
         self.save_state()
         return report
+
+    def _restore_binary(self, root: str, fname: str):
+        live = os.path.join(root, fname)
+        if os.path.isfile(live + '.orig'):
+            os.replace(live + '.orig', live)
 
     def _restore_pack(self, data: str, stem: str):
         live = os.path.join(data, stem + '.pack')
@@ -579,9 +695,16 @@ class Manager:
         for e in self.state.get('loose', []):
             self._remove_loose(root, e)
         n = len(self.state.get('loose', []))
+        self.state['loose'] = []
+        self.save_state()
+        bins = list(self.state.get('binaries', {}))
+        for fname in bins:
+            self._restore_binary(root, fname)
+            self.state['binaries'].pop(fname)
+            self.save_state()
         self.state = {}
         self.save_state()
-        return {'restored': packs, 'loose': n}
+        return {'restored': packs + bins, 'loose': n}
 
     # ------------------------------------------------------------------ status
     def config_digest(self) -> str:
@@ -591,14 +714,15 @@ class Manager:
             if not m['enabled'] or 'info' not in m:
                 continue
             h.update(m['id'].encode())
-            for kind, it in (('f', m['folder'].iter_files()), ('m', m['folder'].iter_merges())):
+            for kind, it in (('f', m['folder'].iter_files()), ('m', m['folder'].iter_merges()),
+                             ('p', m['folder'].iter_patches())):
                 for name, full in it:
                     s = os.stat(full)
                     h.update(f'{kind}|{name}|{s.st_size}|{s.st_mtime_ns}'.encode())
         return h.hexdigest()
 
     def status(self) -> dict:
-        applied = bool(self.state.get('packs') or self.state.get('loose'))
+        applied = _deployed(self.state)
         return {
             'applied': applied,
             'in_sync': self.state.get('config') == self.config_digest() if self.state else not any(
@@ -607,5 +731,6 @@ class Manager:
             'time': self.state.get('time'),
             'packs': self.state.get('packs', {}),
             'loose': len(self.state.get('loose', [])),
+            'binaries': {k: v.get('patches', []) for k, v in self.state.get('binaries', {}).items()},
             'applied_mods': self.state.get('mods', []),
         }

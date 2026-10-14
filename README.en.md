@@ -104,7 +104,7 @@ NarewTools\
 
 - The three exes share the `_internal` folder, so always move **the whole `NarewTools` folder**.
 - The programs are not code-signed, so Windows SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
-- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.4.1`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
+- **Automatic updates** (from 2.2.0): NarewStudio and the mod manager check for a new version when they start (at most every 6 hours, can be turned off) and show what changed. **Update** downloads it, checks its SHA-256 and, when you close the program, puts the new files in and starts it again. The replaced files are backed up to `%LOCALAPPDATA%\NarewTools\update\backup-<version>\`; on any error the old files are put back. The version button at the right of the header (`v2.5.0`) checks right away. A folder Windows does not let you write to (e.g. `Program Files`) cannot update itself: move it to Documents or similar.
 - Up to 2.1.0, update by replacing the folder. Settings, mod projects and installed mods are stored in your user folders and stay ([File locations](#file-locations)).
 
 ## First-time setup
@@ -258,7 +258,7 @@ Apply modes:
 | Loose files (experimental) | Mod files are placed loose in the game folder; packs are not touched. Only verified for GUI images |
 
 - **Table merging**: the `merge\` patches of enabled mods are applied from lowest to highest priority. If two mods change the same entry, the upper one wins. Original encoding and line endings are kept.
-- Loose data files in the game folder (`Language\string.xml` etc.) are backed up once as `<file>.orig` before being changed. Executables and DLLs are never touched.
+- Loose data files in the game folder (`Language\string.xml` etc.) are backed up once as `<file>.orig` before being changed. Executables are never touched. The engine DLLs are changed only by **mods with code patches (format 3)**, after a one-time `<dll>.orig` backup; a patch is written only when its original bytes and the DLL version (SHA-256) match, and one patch file goes into all of its DLLs or into none. After a game update changes the version, that patch is skipped.
 - When a **Steam update** or "Verify integrity of game files" changes files, the next start detects it and tells you. Click **게임에 적용** (Apply to game) again.
 
 ## Mod format
@@ -275,6 +275,8 @@ my-mod/
   merge/          per-record patches for game tables (XML)
     XML/item_table.xml
     Language/string.xml
+  patches/        (format 3) engine DLL code patches - only checked original bytes are changed
+    free_camera.json
 ```
 
 A `merge\` patch (UTF-8). An entry with the same key is replaced whole; otherwise it is appended to the table.
@@ -291,6 +293,7 @@ A `merge\` patch (UTF-8). An entry with the same key is replaced whole; otherwis
 - `merge\` works per entry, so several mods can each add entries to the same table.
 - **Do not redistribute whole original game files.** Include only what you changed or created (NarewStudio's "배포용 .zip 만들기" does exactly that).
 - Details (Korean): [docs/07-new-content.md](docs/07-new-content.md)
+- `patches\` changes behaviour that is code, not data (e.g. the view distance levels, a free camera). Only the four engine DLLs can be targets; the client exe and Steam files are refused. Format and safety rules (Korean): [docs/10-code-patches.md](docs/10-code-patches.md)
 
 ## Connecting AI agents
 
@@ -504,6 +507,7 @@ Up to 2.4.0 the settings and installed mods that NarewStudio, the mod manager an
 | UI sound replacement, GUI images and layout changes | ✅ verified in game |
 | World editing (blocks, furniture) + apply to my world | ✅ verified in game |
 | Worlds bigger than 1024 (up to 4096×4096, `world_new`) | ✅ verified in game |
+| Engine code patches (`patches\`: view distance slider + region loading, free camera) | ✅ verified in game |
 | Edited models/animations loading in game | ⚠ not verified yet |
 | Effects of generic new items, weather/time background music | ⚠ not verified yet |
 | Multiplayer | ⚠ not verified yet |
@@ -519,7 +523,7 @@ narew/       format library + command line tools (pack, brick, model ↔ glTF, m
 studio/      NarewStudio — core, svc_*, creator (new content), worldedit (headless world editing), gl/ (OpenGL), ui/ (Qt), agent/ (AI agents)
 modmanager/  NarewModManager — core (apply engine), ui
 tests/       tests (use a fake game folder)
-tools/       build_exe.py (exe build), PE/RTTI analysis and model validation scripts
+tools/       build_exe.py (exe build), mod_view_distance.py / mod_freecam.py (build the code patch example mods), PE/RTTI analysis and model validation scripts
 docs/        technical documents (Korean)
 AGENTS.md    instructions for AI agents; .mcp.json registers the MCP server for Claude Code
 ```
@@ -535,6 +539,7 @@ AGENTS.md    instructions for AI agents; .mcp.json registers the MCP server for 
 | [07 New content](docs/07-new-content.md) | Engine limits, table merge rules |
 | [08 GUI layout](docs/08-gui-layout.md) | Editing `Gui\*.xml` |
 | [09 AI agents](docs/09-ai-agents.md) | 113 tools, connection, safety |
+| [10 Code patches](docs/10-code-patches.md) | Mod format 3 `patches/`, view distance slider and free camera analysis |
 
 The `re/` analysis output mentioned in the docs (game binary dumps, decompiler output) is not included in this repository.
 

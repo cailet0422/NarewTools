@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QFrame, QGridLayout
                                QListWidgetItem, QMainWindow, QProgressBar, QSplitter, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
-from narew import xmlmerge
+from narew import codepatch, xmlmerge
 from narew.modfmt import ModError, entry_key
 from narew.version import VERSION
 from studio.core import StudioError
@@ -113,9 +113,11 @@ class ModWindow(QMainWindow):
         tl.setColumnStretch(1, 1)
         self.files = self._table(['파일', '크기', '상태'])
         self.merges = self._table(['게임 표', '추가·수정하는 항목', '함께 고치는 모드'])
+        self.patches = self._table(['코드 패치', '바꾸는 파일', '상태'])
         self.tabs = QTabWidget()
         self.tabs.addTab(self.files, '파일')
         self.tabs.addTab(self.merges, '표 병합')
+        self.tabs.addTab(self.patches, '코드 패치')
         right = QWidget()
         rl = QVBoxLayout(right)
         rl.setContentsMargins(6, 10, 10, 10)
@@ -209,11 +211,14 @@ class ModWindow(QMainWindow):
                 inf = m['info']
                 nf = sum(1 for _ in m['folder'].iter_files())
                 nm = sum(1 for _ in m['folder'].iter_merges())
+                npt = sum(1 for _ in m['folder'].iter_patches())
                 lost = sum(1 for n, _ in m['folder'].iter_files()
                            if m['enabled'] and self.win.get(entry_key(n), (0, 0, m['id']))[2] != m['id'])
                 bits = [f'v{inf.version}'] + ([inf.author] if inf.author else []) + [f'파일 {nf}']
                 if nm:
                     bits.append(f'표 병합 {nm}')
+                if npt:
+                    bits.append(f'코드 패치 {npt}')
                 if lost:
                     bits.append(f'⚠ 가려진 파일 {lost}')
                 it.setText(f"{inf.name}\n{' · '.join(bits)}")
@@ -257,6 +262,7 @@ class ModWindow(QMainWindow):
     def show_mod(self, mod_id: str | None):
         self.files.setRowCount(0)
         self.merges.setRowCount(0)
+        self.patches.setRowCount(0)
         m = next((x for x in self.mgr.installed() if x['id'] == mod_id), None) if mod_id else None
         if not m or 'info' not in m:
             self.preview.clear()
@@ -302,8 +308,23 @@ class ModWindow(QMainWindow):
             others = [x for x, _ in self.mrg.get(entry_key(name), ('', []))[1] if x != m['id']]
             for c, t in enumerate((name, count, ', '.join(others) or '-')):
                 self.merges.setItem(r, c, QTableWidgetItem(t))
+        patches = list(m['folder'].iter_patches())
+        applied = {u for us in self.mgr.status()['binaries'].values() for u in us}
+        self.patches.setRowCount(len(patches))
+        for r, (name, full) in enumerate(patches):
+            try:
+                pf = codepatch.load(full)
+                files = ', '.join(t.file for t in pf.targets)
+                text = name + (f' — {pf.description}' if pf.description else '')
+                state = ('적용됨' if f"{m['id']}/{name}" in applied else '꺼짐' if not m['enabled']
+                         else '아직 적용 안 됨')
+            except (OSError, codepatch.CodePatchError) as ex:
+                text, files, state = name, '-', f'⚠ {ex}'
+            for c, t in enumerate((text, files, state)):
+                self.patches.setItem(r, c, QTableWidgetItem(t))
         self.tabs.setTabText(0, f'파일 {len(rows)}')
         self.tabs.setTabText(1, f'표 병합 {len(merges)}')
+        self.tabs.setTabText(2, f'코드 패치 {len(patches)}')
 
     # ------------------------------------------------------------------ actions
     def save_order(self):
@@ -414,6 +435,8 @@ class ModWindow(QMainWindow):
             lines.append(f"게임 폴더에 넣은 파일: {r['loose']}개")
         if r['overridden']:
             lines.append('백업 후 바꾼 게임 파일: ' + ', '.join(r['overridden']))
+        for fname, used in sorted(r.get('binaries', {}).items()):
+            lines.append(f'코드 패치 ({fname}, 백업 후): ' + ', '.join(used))
         if r['conflicts']:
             lines.append(f"같은 파일을 바꾸는 모드: {r['conflicts']}개 파일 (위쪽 모드 우선)")
         if r['skipped']:
@@ -423,7 +446,7 @@ class ModWindow(QMainWindow):
     def restore(self):
         if confirm('원본 복구', '게임에 넣은 모드를 모두 빼고 원본 파일로 되돌릴까요?\n(설치된 모드는 지워지지 않습니다)', '복구'):
             self._run('원본 복구', lambda prog: self.mgr.restore_all(),
-                      lambda r: info(f"복구했습니다. 팩 {len(r['restored'])}개, 파일 {r['loose']}개", '복구 완료'))
+                      lambda r: info(f"복구했습니다. 팩·DLL {len(r['restored'])}개, 파일 {r['loose']}개", '복구 완료'))
 
     # ------------------------------------------------------------------ drag & drop install
     def dragEnterEvent(self, e):

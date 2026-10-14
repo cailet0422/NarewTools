@@ -36,6 +36,9 @@ RULES: dict[str, dict[str, tuple[str, ...]]] = {
     'language\\string.xml': {'string': ('table', 'index')},
     'language\\asobi_string.xml': {'string': ('table', 'index')},
     'language\\happytuk_string.xml': {'string': ('table', 'index')},
+    'language\\word.xml': {'match': ('word',)},
+    'language\\asobi_word.xml': {'match': ('word',)},
+    'language\\happytuk_word.xml': {'match': ('word',)},
 }
 
 _ATTR = re.compile(r'([A-Za-z_][\w.-]*)\s*=\s*("([^"]*)"|\'([^\']*)\')')

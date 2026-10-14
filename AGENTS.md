@@ -21,7 +21,8 @@ explains workflows: `overview`, `world`, `content`, `gui`, `sound`, `models`, `m
 ## Ground rules
 
 1. **The game install is read-only.** All edits go into the open *mod project*
-   (`Documents\NarewStudio\Projects\<id>`: `files/` replaced or new files, `merge/` table records).
+   (`Documents\NarewStudio\Projects\<id>`: `files/` replaced or new files, `merge/` table records,
+   `patches/` checked byte patches of the engine DLLs — mod format 3, see `docs/10-code-patches.md`).
    Never write into the game folder with your own file tools.
 2. Tools marked **CHANGES THE REAL GAME INSTALL OR ITS SAVES** (`world_apply_to_game`,
    `world_restore_backup`, `world_remove_from_game`, `manager_apply`, `manager_restore`) need `confirm=true`. Call once without it,
@@ -30,8 +31,12 @@ explains workflows: `overview`, `world`, `content`, `gui`, `sound`, `models`, `m
    file in `Documents\NarewStudio\Worlds\`; only `world_apply_to_game` (with consent) puts it back.
 4. Do not ship whole original game files in a mod zip; do not try to obtain other players'/servers' worlds.
 5. In-game verified: new blocks, new furniture, hand recipes, strings, UI sound, GUI images/layout, world edits
-   + apply to my world, picture pixel-art walls, worlds up to 4096×4096 (`world_new` + `new_world`). **Not verified yet** (say so when you deliver them): edited models/animations in game,
-   generic new items' effects, weather/time BGM, multiplayer.
+   + apply to my world, picture pixel-art walls, worlds up to 4096×4096 (`world_new` + `new_world`), engine code
+   patches (`patches/`: the view distance slider from `tools/mod_view_distance.py`, the free camera from
+   `tools/mod_freecam.py` - one patch file over NarewEngine2 + IsletEngine). **Not verified yet** (say so when you
+   deliver them): edited models/animations in game, generic new items' effects, weather/time BGM, multiplayer.
+   A new code patch is a new risk every time: check it with capstone and the Windows loader, keep it pinned to the
+   DLL sha256, and say it is untested in game until the user confirms.
 
 ## Start of a session
 
