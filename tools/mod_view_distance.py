@@ -1,4 +1,4 @@
-"""Build the "view distance slider" code patch for IsletEngine_release(x64).dll (game build of 2026-10-03).
+"""Build the "view distance slider" code patch for IsletEngine_release(x64).dll (game builds of 2026-10-03, -16).
 
     python tools/mod_view_distance.py <untouched IsletEngine_release(x64).dll> <mod project folder>
            [--min 20] [--max 512] [--default <level 0..100>] [--dry-run]
@@ -23,9 +23,10 @@ What the patch does:
   * regions are allocated (and requested) up to ALLOCS per frame instead of one, and the region thread
     (CBrickWorld::Run) handles STEPS regions per run without its Sleep(1)s, so a big range fills in seconds
 
-Room for the new code: UpdateViewDistance's own 144 bytes (new body + slider handler) and the 192 zero
-bytes after the end of .text (the section's virtual size is raised to its file size to map them).
-The patch is pinned to the DLL's sha256, so a game update simply makes the mod manager skip it.
+Room for the new code: UpdateViewDistance's own 144 bytes (new body + slider handler) and the zero bytes after
+the end of .text (192 / 240 bytes; the section's virtual size is raised to its file size to map them).
+The patch is pinned to the sha256 of the DLL it is built from (BUILDS lists the known builds), so a game update
+simply makes the mod manager skip it.
 """
 from __future__ import annotations
 
@@ -39,40 +40,76 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from narew import codepatch  # noqa: E402
 from narew.modfmt import ModFolder  # noqa: E402
 
-SHA256 = '8e4c0cd9ca4f9308db163aefe5f8e14fc3020ab1a1b03a260d3b0955d123e3cf'
 BASE = 0x180000000
-# --- addresses in that build (VA)
-UVD = 0x18012c7d0               # COption::UpdateViewDistance, 0x90 bytes up to the next function
-UVD_END = 0x18012c860
-OPT_UPDATEDATA_MAX = 0x18012c627    # COption::UpdateData: mov dword [rsp+0x2c], 4   (clamp of graphic[3])
-CTOR_DEFAULT = 0x180129fea      # COption::COption: mov dword [rbx+0x1ed8], 3
-ON_CHANGED = 0x180131f00        # COptionUI::OnChangedViewRange(int level, int apply)
-ON_CHANGED_MAX = 0x180131f22    # mov eax, 4
-ON_CHANGED_CALL = 0x180131f73   # mov rcx, rsi ; call UpdateViewDistance
-UI_UPDATEDATA_MAX = 0x18013244c     # COptionUI::UpdateData: mov eax, 4
-UI_UPDATEDATA_CALL = 0x180132496    # mov rcx, rbx ; call UpdateViewDistance
-DEFAULT_MAX = 0x1801332e6       # COptionUI::OnClickDefaultGraphic: mov eax, 4
-DEFAULT_CALL = 0x18013332f      # mov rcx, rbx ; call UpdateViewDistance
-GUI_SLIDER_JNE = 0x180130fda    # OnGuiEvent, scroll event 410: jne <done> when the node is not 411 (FOV)
-GUI_DONE = 0x1801312e8          # OnGuiEvent: common "return 1"
-REGION_ALLOC_WRAP = 0x1800aa0a7     # IBrickGroupManager::UpdateRegionAlloc: cursor = 0 ; end = 32 (wrap-around)
-CAMERA_FAR_LOAD = 0x1800f8b6d   # CGameCamera::Create: movss xmm1, [300.0] ; call camera->SetFar
-REGION_UPDATE_CALL = 0x1800aa02d    # IBrickGroupManager::UpdateRegion: mov rax,[rbx] ; mov edx,edi ; mov rcx,rbx ;
-                                    # call [rax+0x68] (= UpdateRegionAlloc, at most one new region per call)
-SPARE = 0x180033ba0             # CSky::operator=(const CSky&): exported by the compiler, never called by anything
+# --- addresses (VA) per known build: sha256 -> {name: va}.  build() points the module constants at the build it gets.
+#   UVD, UVD_END          COption::UpdateViewDistance, 0x90 bytes up to the next function
+#   OPT_UPDATEDATA_MAX    COption::UpdateData: mov dword [rsp+0x2c], 4   (clamp of graphic[3])
+#   CTOR_DEFAULT          COption::COption: mov dword [rbx+0x1ed8], 3
+#   ON_CHANGED            COptionUI::OnChangedViewRange(int level, int apply)
+#   ON_CHANGED_MAX        mov eax, 4                                  ON_CHANGED_CALL     mov rcx, rsi ; call UVD
+#   UI_UPDATEDATA_MAX     COptionUI::UpdateData: mov eax, 4           UI_UPDATEDATA_CALL  mov rcx, rbx ; call UVD
+#   DEFAULT_MAX           COptionUI::OnClickDefaultGraphic: mov eax, 4    DEFAULT_CALL    mov rcx, rbx ; call UVD
+#   GUI_SLIDER_JNE        OnGuiEvent, scroll event 410: jne <done> when the node is not 411 (FOV)
+#   GUI_DONE              OnGuiEvent: common "return 1"
+#   REGION_ALLOC_WRAP     IBrickGroupManager::UpdateRegionAlloc: cursor = 0 ; end = 32 (wrap-around)
+#   CAMERA_FAR_LOAD       CGameCamera::Create: movss xmm1, [300.0] ; call camera->SetFar
+#   REGION_UPDATE_CALL    IBrickGroupManager::UpdateRegion: mov rax,[rbx] ; mov edx,edi ; mov rcx,rbx ;
+#                         call [rax+0x68] (= UpdateRegionAlloc, at most one new region per call)
+#   SPARE                 CSky::operator=(const CSky&): exported by the compiler, never called by anything;
+#                         SPARE_RUN = SPARE + 0x30, the second loop after the allocation loop
+#   WORLD_RUN_CALLS       CBrickWorld::Run (region thread): mov rcx,rbx ; call CACHE_STEP ; mov rcx,rbx ;
+#                         call BUILD_STEP  (16 bytes; each call does ONE region)
+#   STEP_SLEEPS           mov ecx, 1 ; call [Sleep]   after each region in those two steps
+#   F300, F1000, F100     .rdata floats (1000.0 is the sky camera's far plane, the original slider code
+#                         multiplies with 100.0)
+#   FMT_D                 L"%d"
+#   TEXT_VSIZE, TEXT_RAWSIZE  .text virtual / file size; SLACK..SLACK_END = the zero bytes after its virtual end
+# The Steam update of 2026-10-16 changed IsletEngine's code elsewhere: every function this patch touches or calls is
+# instruction for instruction the same in both builds (branch and RIP targets included, capstone), only moved.
+BUILDS = {
+    '8e4c0cd9ca4f9308db163aefe5f8e14fc3020ab1a1b03a260d3b0955d123e3cf': dict(
+        DATE='2026-10-03', UVD=0x18012c7d0, OPT_UPDATEDATA_MAX=0x18012c627, CTOR_DEFAULT=0x180129fea,
+        ON_CHANGED=0x180131f00, ON_CHANGED_MAX=0x180131f22, ON_CHANGED_CALL=0x180131f73,
+        UI_UPDATEDATA_MAX=0x18013244c, UI_UPDATEDATA_CALL=0x180132496, DEFAULT_MAX=0x1801332e6,
+        DEFAULT_CALL=0x18013332f, GUI_SLIDER_JNE=0x180130fda, GUI_DONE=0x1801312e8, REGION_ALLOC_WRAP=0x1800aa0a7,
+        CAMERA_FAR_LOAD=0x1800f8b6d, REGION_UPDATE_CALL=0x1800aa02d, SPARE=0x180033ba0, WORLD_RUN_CALLS=0x1800b6064,
+        CACHE_STEP=0x1800a4a60, BUILD_STEP=0x1800a48f0, STEP_SLEEPS=(0x1800a4b19, 0x1800a4993),
+        F300=0x1802562b8, F1000=0x18025630c, F100=0x1802562ec, FMT_D=0x180238bd8,
+        TEXT_VSIZE=0x20433f, TEXT_RAWSIZE=0x204400, SLACK=0x180205340, SLACK_END=0x180205400),
+    'abe3d06c6c0c9de8914e6dcb59b8580c48cfa84ea1c1e13d2aa42cfdd9ff0670': dict(
+        DATE='2026-10-16', UVD=0x18012ce30, OPT_UPDATEDATA_MAX=0x18012cc87, CTOR_DEFAULT=0x18012a64a,
+        ON_CHANGED=0x1801324f0, ON_CHANGED_MAX=0x180132512, ON_CHANGED_CALL=0x180132563,
+        UI_UPDATEDATA_MAX=0x180132a3c, UI_UPDATEDATA_CALL=0x180132a86, DEFAULT_MAX=0x1801338d6,
+        DEFAULT_CALL=0x18013391f, GUI_SLIDER_JNE=0x1801315ca, GUI_DONE=0x1801318d8, REGION_ALLOC_WRAP=0x1800a9f57,
+        CAMERA_FAR_LOAD=0x1800f8f9d, REGION_UPDATE_CALL=0x1800a9edd, SPARE=0x180033af0, WORLD_RUN_CALLS=0x1800b5f44,
+        CACHE_STEP=0x1800a4900, BUILD_STEP=0x1800a4790, STEP_SLEEPS=(0x1800a49b9, 0x1800a4833),
+        F300=0x180256398, F1000=0x1802563ec, F100=0x1802563cc, FMT_D=0x180238be8,
+        TEXT_VSIZE=0x204d0f, TEXT_RAWSIZE=0x204e00, SLACK=0x180205d10, SLACK_END=0x180205e00),
+}
+UVD_SYMBOL = '?UpdateViewDistance@COption@Islet@@QEAAXXZ'
+ON_CHANGED_SYMBOL = '?OnChangedViewRange@COptionUI@Islet@@IEAAXHH@Z'
 SPARE_SYMBOL = '??4CSky@Islet@@QEAAAEAV01@AEBV01@@Z'
-SPARE_RUN = SPARE + 0x30        # second loop, after the allocation loop
-WORLD_RUN_CALLS = 0x1800b6064   # CBrickWorld::Run (region thread): mov rcx,rbx ; call cache-check ; mov rcx,rbx ;
-CACHE_STEP, BUILD_STEP = 0x1800a4a60, 0x1800a48f0       # call mesh-build  (16 bytes; each call does ONE region)
-STEP_SLEEPS = (0x1800a4b19, 0x1800a4993)    # mov ecx, 1 ; call [Sleep]   after each region in those two steps
-F300, F1000 = 0x1802562b8, 0x18025630c      # .rdata floats (1000.0 is the sky camera's far plane)
-F100 = 0x1802562ec              # float 100.0 the original slider code multiplies with
-WSPRINTFW_IAT = 0x1802081a0     # [IAT] user32!wsprintfW
-FMT_D = 0x180238bd8             # L"%d"
+WSPRINTFW_IAT = 0x1802081a0     # [IAT] user32!wsprintfW (same slot in both builds)
 TEXT_HDR_VSIZE = 0x218          # file offset of .text VirtualSize in the section table
-TEXT_VSIZE, TEXT_RAWSIZE = 0x20433f, 0x204400
-SLACK = 0x180205340             # first 16-aligned byte after .text's virtual end
-SLACK_END = 0x180205400
+
+
+def _select(sha: str) -> None:
+    b = BUILDS[sha]
+    globals().update(b, SHA256=sha, UVD_END=b['UVD'] + 0x90, SPARE_RUN=b['SPARE'] + 0x30)
+
+
+def use_build(dll: bytes) -> str:
+    """Point the address constants at the build of ``dll``; returns its date (SystemExit for a build not in BUILDS)."""
+    sha = codepatch.sha256(dll)
+    if sha not in BUILDS:
+        raise SystemExit('IsletEngine_release(x64).dll: 아는 빌드('
+                         + ', '.join(v['DATE'] for v in BUILDS.values()) + ')의 원본이 아닙니다 (sha256 불일치).')
+    _select(sha)
+    return BUILDS[sha]['DATE']
+
+
+_select(list(BUILDS)[-1])       # module constants = the newest build until build() picks the one it is given
+
 # COptionUI / COption members
 UI_GUI_ROOT, UI_OPTION, UI_RANGE_TEXT = 0x20, 0x50, 0x160
 OPT_LEVEL, OPT_RANGE, OPT_OBJ_RANGE = 0x1ed8, 0x1f50, 0x1f54
@@ -136,11 +173,26 @@ class Asm:
 
 def build(dll: bytes, vmin: float, vmax: float, default: int, slider_id: int, allocs: int = 32,
           steps: int = 16) -> codepatch.Target:
+    use_build(dll)
     img = codepatch.PEImage(dll)
 
     def orig(va, n):
         o = img.rva_to_offset(va - BASE, n)
         return dll[o:o + n]
+
+    def rel_target(va, n):          # target of the rel32 at the end of an n-byte instruction at va
+        return va + n + struct.unpack('<i', orig(va + n - 4, 4))[0]
+
+    # the places the new code calls or jumps to (the patched bytes themselves are checked by codepatch)
+    ex = img.exports()
+    assert ex.get(UVD_SYMBOL) == UVD - BASE and ex.get(ON_CHANGED_SYMBOL) == ON_CHANGED - BASE
+    assert orig(GUI_SLIDER_JNE, 2) == b'\x0f\x85' and rel_target(GUI_SLIDER_JNE, 6) == GUI_DONE
+    assert orig(WORLD_RUN_CALLS, 4) == bytes.fromhex('488bcbe8') and rel_target(WORLD_RUN_CALLS, 8) == CACHE_STEP
+    assert orig(WORLD_RUN_CALLS + 8, 4) == bytes.fromhex('488bcbe8') and rel_target(WORLD_RUN_CALLS + 8, 8) == BUILD_STEP
+    assert struct.unpack('<f', orig(F100, 4))[0] == 100.0 and orig(FMT_D, 6) == '%d'.encode('utf-16-le') + b'\0\0'
+    assert img.sections[0][:3] == ('.text', 0x1000, TEXT_VSIZE) and img.sections[0][4] == TEXT_RAWSIZE
+    assert SLACK == (BASE + 0x1000 + TEXT_VSIZE + 15) & ~15 and SLACK_END == BASE + 0x1000 + TEXT_RAWSIZE
+    assert struct.unpack_from('<I', dll, TEXT_HDR_VSIZE)[0] == TEXT_VSIZE
 
     step = (vmax - vmin) / 100.0
     patches = []
@@ -321,8 +373,7 @@ def main():
     a = ap.parse_args()
     with open(a.dll, 'rb') as f:
         dll = f.read()
-    if codepatch.sha256(dll) != SHA256:
-        sys.exit('이 스크립트는 2026-10-03 빌드의 IsletEngine_release(x64).dll 전용입니다 (sha256 불일치).')
+    print(f'IsletEngine_release(x64).dll: {use_build(dll)} 빌드')
     if a.default is None:
         a.default = round((190.0 - a.min) * 100 / (a.max - a.min))
     t = build(dll, a.min, a.max, a.default, a.slider_id, a.allocs, a.steps)

@@ -1,4 +1,4 @@
-"""Build the "free camera" mod (engine code patches + GUI buttons) for the 64-bit client (game build of 2026-10-03).
+"""Build the "free camera" mod (engine code patches + GUI buttons) for the 64-bit client (builds of 2026-10-03, -16).
 
     python tools/mod_freecam.py <game folder> <mod project folder> [--speed 20] [--fast 4] [--dry-run]
 
@@ -31,7 +31,8 @@ How (REA, see docs/10-code-patches.md):
       the start of the NarewEngine2 code, so it does nothing when that DLL is not patched
   New code lives in compiler-made exports nothing calls: IGUICore's copy constructor (NarewEngine2) and COption's
   copy constructor (IsletEngine; the view distance mod uses CSky::operator=, so both mods fit together).
-Both targets are pinned to their sha256 and the mod manager applies the patch file to both DLLs or to neither.
+Both targets are pinned to the sha256 of the DLLs they are built from (N2_SHAS / IE_BUILDS list the known builds)
+and the mod manager applies the patch file to both DLLs or to neither.
 """
 from __future__ import annotations
 
@@ -53,7 +54,12 @@ SIG = b'NWFRCAM1'
 
 # ---------------------------------------------------------------- NarewEngine2_Release64.dll
 N2_FILE = 'NarewEngine2_Release64.dll'
-N2_SHA = '40d2a2fc50b3cc3e235ca2afcdc18cfe1f679c921528fecbc15a2191b6adb23c'
+# known builds; the Steam update of 2026-10-16 rebuilt the DLL with byte-identical code (only the PE/debug timestamps
+# and the PDB age differ), so the addresses below hold for both
+N2_SHAS = {
+    '40d2a2fc50b3cc3e235ca2afcdc18cfe1f679c921528fecbc15a2191b6adb23c': '2026-10-03',
+    '3ce895c96dbadc050f4e3d34d8bc85861fcea15a67da32efc70055f5c17ee288': '2026-10-16',
+}
 N2_CAVE = 0x180024bf0                       # ??0IGUICore@Nw@@QEAA@AEBV01@@Z (1457 bytes, never called)
 N2_CAVE_SYMBOL = '??0IGUICore@Nw@@QEAA@AEBV01@@Z'
 N2_CAVE_SIZE = 1457
@@ -70,25 +76,56 @@ VT_EVENT_ID = 0x70                          # IGUIEvent::GetEvent
 
 # ---------------------------------------------------------------- IsletEngine_release(x64).dll
 IE_FILE = 'IsletEngine_release(x64).dll'
-IE_SHA = '8e4c0cd9ca4f9308db163aefe5f8e14fc3020ab1a1b03a260d3b0955d123e3cf'
-IE_CAVE = 0x1800fb310                       # ??0COption@Islet@@QEAA@AEBV01@@Z (2204 bytes, never called)
+# addresses (VA) per known build: sha256 -> {name: va}; build_ie() points the module constants at the build it gets.
+#   IE_CAVE           ??0COption@Islet@@QEAA@AEBV01@@Z (2204 bytes, never called)
+#   CAM_DISPATCH      CGameCamera::Update: test ecx,ecx ... call UpdateRPG/UpdateFPS (26 bytes up to CAM_DISPATCH_END)
+#   UPDATE_FPS, UPDATE_RPG, ROT_R, ROT_LOCK   CGameCamera::UpdateFPS / UpdateRPG / UpdateMouseRotR / UpdateMouseRotLock
+#                                             (the last two: this, elapsed, 0)
+#   NM_KB             UpdateNormalMode: cmp byte [rcx+0x262],0 (keyboard locked?)
+#   NM_AUTO           UpdateNormalMode: cmp byte [rbx+0x261],0 (auto move?)
+#   NM_MOUSE          UpdateNormalMode: cmp byte [rbx+0x263],0 (mouse locked?)
+#   FALL_KB           UpdateFalling: cmp byte [rdi+0x262],0 (stop the walk when locked)
+#   UPD_ESC           CGameControl::Update: cmp byte [rdi+0x91],3 (ESC released -> menu callback)
+#   UPD_KB            CGameControl::Update: cmp byte [rdi+0x262],0 (R key callback)
+#   NAMES             ICreatureRenderable::AddDrawName: cmp qword [rcx+0x1c0],0 ; .. jne out
+#   BUBBLES           CSpeechBubbleMgr::Render(): cmp dword [rcx+0x530],0 ; .. jle out
+#   NUMBERS           CNumberEffectMgr::Render(): mov rcx,[rcx+0x200] ; test rcx,rcx ; je out
+# The Steam update of 2026-10-16 changed IsletEngine's code elsewhere: every function this patch touches or calls is
+# instruction for instruction the same in both builds (branch and RIP targets included, capstone), only moved.
+IE_BUILDS = {
+    '8e4c0cd9ca4f9308db163aefe5f8e14fc3020ab1a1b03a260d3b0955d123e3cf': dict(
+        DATE='2026-10-03', IE_CAVE=0x1800fb310, CAM_DISPATCH=0x1800f8d2e, CAM_DISPATCH_END=0x1800f8d48,
+        UPDATE_FPS=0x1800f9820, UPDATE_RPG=0x1800f9aa0, ROT_R=0x1800fa2c0, ROT_LOCK=0x1800fa770,
+        NM_KB=0x1801002da, NM_AUTO=0x180100355, NM_MOUSE=0x180100368, FALL_KB=0x1800fed0f,
+        UPD_ESC=0x1800fd24d, UPD_KB=0x1800fd268, NAMES=0x1800dcba7, BUBBLES=0x1800f70db, NUMBERS=0x1800f56b9),
+    'abe3d06c6c0c9de8914e6dcb59b8580c48cfa84ea1c1e13d2aa42cfdd9ff0670': dict(
+        DATE='2026-10-16', IE_CAVE=0x1800fb730, CAM_DISPATCH=0x1800f915e, CAM_DISPATCH_END=0x1800f9178,
+        UPDATE_FPS=0x1800f9c70, UPDATE_RPG=0x1800f9ef0, ROT_R=0x1800fa710, ROT_LOCK=0x1800fabc0,
+        NM_KB=0x1801006ea, NM_AUTO=0x180100765, NM_MOUSE=0x180100778, FALL_KB=0x1800ff12f,
+        UPD_ESC=0x1800fd66d, UPD_KB=0x1800fd688, NAMES=0x1800dc947, BUBBLES=0x1800f739b, NUMBERS=0x1800f5689),
+}
 IE_CAVE_SYMBOL = '??0COption@Islet@@QEAA@AEBV01@@Z'
 IE_CAVE_SIZE = 2204
-IE_ANCHOR_IAT = 0x180206530                 # [IAT] NarewEngine2!?Interpolate@Nw@@YAMMMM@Z
+IE_SYMBOLS = {'UPDATE_FPS': '?UpdateFPS@CGameCamera@Islet@@IEAAXK@Z',      # the functions the new code calls
+              'UPDATE_RPG': '?UpdateRPG@CGameCamera@Islet@@IEAAXK@Z',
+              'ROT_R': '?UpdateMouseRotR@CGameCamera@Islet@@IEAAHKH@Z',
+              'ROT_LOCK': '?UpdateMouseRotLock@CGameCamera@Islet@@IEAAHKH@Z'}
+IE_ANCHOR_IAT = 0x180206530                 # [IAT] NarewEngine2!?Interpolate@Nw@@YAMMMM@Z (same slot in both builds)
 ANCHOR_SYMBOL = '?Interpolate@Nw@@YAMMMM@Z'
-CAM_DISPATCH = 0x1800f8d2e                  # CGameCamera::Update: test ecx,ecx ... call UpdateRPG/UpdateFPS (26 bytes)
-CAM_DISPATCH_END = 0x1800f8d48
-UPDATE_FPS, UPDATE_RPG = 0x1800f9820, 0x1800f9aa0
-ROT_R, ROT_LOCK = 0x1800fa2c0, 0x1800fa770  # UpdateMouseRotR / UpdateMouseRotLock (this, elapsed, 0)
-NM_KB = 0x1801002da                         # UpdateNormalMode: cmp byte [rcx+0x262],0 (keyboard locked?)
-NM_AUTO = 0x180100355                       # UpdateNormalMode: cmp byte [rbx+0x261],0 (auto move?)
-NM_MOUSE = 0x180100368                      # UpdateNormalMode: cmp byte [rbx+0x263],0 (mouse locked?)
-FALL_KB = 0x1800fed0f                       # UpdateFalling: cmp byte [rdi+0x262],0 (stop the walk when locked)
-UPD_ESC = 0x1800fd24d                       # Update: cmp byte [rdi+0x91],3 (ESC released -> menu callback)
-UPD_KB = 0x1800fd268                        # Update: cmp byte [rdi+0x262],0 (R key callback)
-NAMES = 0x1800dcba7                         # ICreatureRenderable::AddDrawName: cmp qword [rcx+0x1c0],0 ; .. jne out
-BUBBLES = 0x1800f70db                       # CSpeechBubbleMgr::Render(): cmp dword [rcx+0x530],0 ; .. jle out
-NUMBERS = 0x1800f56b9                       # CNumberEffectMgr::Render(): mov rcx,[rcx+0x200] ; test rcx,rcx ; je out
+
+
+def use_ie_build(dll: bytes) -> str:
+    """Point the IsletEngine constants at the build of ``dll``; returns its date (SystemExit for an unknown build)."""
+    sha = codepatch.sha256(dll)
+    if sha not in IE_BUILDS:
+        raise SystemExit(f'{IE_FILE}: 아는 빌드(' + ', '.join(v['DATE'] for v in IE_BUILDS.values())
+                         + ')의 원본이 아닙니다 (sha256 불일치).')
+    globals().update(IE_BUILDS[sha])
+    return IE_BUILDS[sha]['DATE']
+
+
+globals().update(list(IE_BUILDS.values())[-1])     # the newest build until build_ie() picks the one it is given
+
 # CGameCamera members
 CAM_MODE, CAM_NCAM, CAM_CTRL, CAM_YAW, CAM_PITCH, CAM_LOCKMODE = 0x60, 0x40, 0x50, 0xf0, 0xf4, 0x124
 # Nw::ICamera: eye +0x14, at +0x20 ; vtable SetEye 0x78, SetYawPitchRoll 0xf8 (yaw, pitch, roll, distance), GetRoll 0x110
@@ -184,6 +221,7 @@ def find_node(a: Asm, core_reg: str):
 
 
 def build_n2(dll: bytes) -> codepatch.Target:
+    assert codepatch.sha256(dll) in N2_SHAS, 'unknown NarewEngine2 build'
     img = codepatch.PEImage(dll)
     assert img.exports().get(N2_CAVE_SYMBOL) == N2_CAVE - BASE
     patches = []
@@ -287,13 +325,18 @@ def build_n2(dll: bytes) -> codepatch.Target:
     patches.append(codepatch.Patch(u32(N2_DATA_VSIZE), u32(N2_DATA_VSIZE_NEW), rva=N2_DATA_VSIZE_FIELD,
                                    note='.data virtual size to the page end (free camera state block)'))
     patches.sort(key=lambda p: p.rva)
-    return codepatch.Target(N2_FILE, patches, N2_SHA)
+    return codepatch.Target(N2_FILE, patches, codepatch.sha256(dll))
 
 
 def build_ie(dll: bytes, n2: bytes, speed: float, fast: float) -> codepatch.Target:
+    use_ie_build(dll)
+    assert codepatch.sha256(n2) in N2_SHAS, 'unknown NarewEngine2 build'
     img = codepatch.PEImage(dll)
     n2img = codepatch.PEImage(n2)
-    assert img.exports().get(IE_CAVE_SYMBOL) == IE_CAVE - BASE
+    ex = img.exports()
+    assert ex.get(IE_CAVE_SYMBOL) == IE_CAVE - BASE
+    for name, symbol in IE_SYMBOLS.items():
+        assert ex.get(symbol) == globals()[name] - BASE, name
     anchor_rva = n2img.exports()[ANCHOR_SYMBOL]
     patches = []
 
@@ -522,7 +565,7 @@ def build_ie(dll: bytes, n2: bytes, speed: float, fast: float) -> codepatch.Targ
     h('0f1f00')                                     # 3-byte nop (the check was 8 bytes)
     add(NAMES, h.done(), 'AddDrawName: no name boards in free camera mode')
     patches.sort(key=lambda p: p.rva)
-    return codepatch.Target(IE_FILE, patches, IE_SHA)
+    return codepatch.Target(IE_FILE, patches, codepatch.sha256(dll))
 
 
 # ---------------------------------------------------------------- GUI
@@ -614,16 +657,18 @@ def main():
     ap.add_argument('--dry-run', action='store_true')
     a = ap.parse_args()
 
-    def untouched(fname, sha):
+    def untouched(fname, shas):
         for p in (os.path.join(a.game, fname + '.orig'), os.path.join(a.game, fname)):
             if os.path.isfile(p):
                 with open(p, 'rb') as f:
                     data = f.read()
-                if codepatch.sha256(data) == sha:
+                if codepatch.sha256(data) in shas:
+                    print(f'{fname}: {shas[codepatch.sha256(data)]} 빌드')
                     return data
-        sys.exit(f'{fname}: 2026-10-03 빌드의 원본이 아닙니다 (sha256 불일치). 이 스크립트는 그 빌드 전용입니다.')
+        sys.exit(f'{fname}: 아는 빌드({", ".join(shas.values())})의 원본이 아닙니다 (sha256 불일치).')
 
-    ie, n2 = untouched(IE_FILE, IE_SHA), untouched(N2_FILE, N2_SHA)
+    ie = untouched(IE_FILE, {k: v['DATE'] for k, v in IE_BUILDS.items()})
+    n2 = untouched(N2_FILE, N2_SHAS)
     t_n2 = build_n2(n2)
     t_ie = build_ie(ie, n2, a.speed, a.fast)
     pf = codepatch.PatchFile(a.name, f'프리캠: 상점 버튼 왼쪽 버튼, WASD·Space·Shift(Ctrl {a.fast:g}배) 이동 '

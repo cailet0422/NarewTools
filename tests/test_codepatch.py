@@ -50,7 +50,7 @@ shutil.copy2(src, os.path.join(fake, DLL))
 open(os.path.join(fake, 'IsletClient_release(x64).exe'), 'wb').close()      # marker only
 with open(os.path.join(fake, DLL), 'rb') as f:
     pristine = f.read()
-check('test DLL is the build the slider patch is made for', codepatch.sha256(pristine) == vd.SHA256)
+check('test DLL is a build the slider patch knows', codepatch.sha256(pristine) in vd.BUILDS)
 
 # ---- the patch itself
 target = vd.build(pristine, 20.0, 225.0, 83, 4100)
@@ -169,7 +169,8 @@ n2src = os.path.join(GAME, N2 + '.orig') if os.path.isfile(os.path.join(GAME, N2
 shutil.copy2(n2src, os.path.join(fake, N2))
 with open(os.path.join(fake, N2), 'rb') as f:
     n2_pristine = f.read()
-check('test NarewEngine2 is the build the free camera patch is made for', codepatch.sha256(n2_pristine) == fc.N2_SHA)
+check('test DLLs are builds the free camera patch knows', codepatch.sha256(n2_pristine) in fc.N2_SHAS
+      and codepatch.sha256(pristine) in fc.IE_BUILDS)
 t_n2, t_ie = fc.build_n2(n2_pristine), fc.build_ie(pristine, n2_pristine, 20.0, 4.0)
 n2_patched, ie_fc = codepatch.apply(n2_pristine, t_n2), codepatch.apply(pristine, t_ie)
 n2img = codepatch.PEImage(n2_patched)

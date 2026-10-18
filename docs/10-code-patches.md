@@ -50,7 +50,8 @@
 
 ## 사례: 시야거리 슬라이더 (`tools/mod_view_distance.py`)
 
-2026-10-03 빌드 `IsletEngine_release(x64).dll` (sha256 `8e4c0cd9…e3cf`) 분석 결과:
+2026-10-03 빌드 `IsletEngine_release(x64).dll` (sha256 `8e4c0cd9…e3cf`) 분석 결과(주소는 이 빌드 기준, 2026-10-16
+빌드는 맨 아래 "새 IsletEngine으로 옮기기"와 도구의 `BUILDS` 표):
 
 | 위치 (VA) | 내용 |
 |---|---|
@@ -111,8 +112,8 @@ capstone 전수 검사로 확인. 남은 빈 자리를 찾을 때 같은 방법(
 
 ## 사례: 프리캠 (`tools/mod_freecam.py`, DLL 두 개)
 
-`python tools/mod_freecam.py <게임 폴더> <모드 프로젝트> [--speed 20 --fast 4]` — 같은 2026-10-03 빌드의
-`NarewEngine2_Release64.dll`(sha256 `40d2a2fc…`)과 `IsletEngine_release(x64).dll`을 함께 패치하는 패치 파일 하나
+`python tools/mod_freecam.py <게임 폴더> <모드 프로젝트> [--speed 20 --fast 4]` — 같은 빌드(2026-10-03 또는 -16)의
+`NarewEngine2_Release64.dll`(sha256 `40d2a2fc…` / `3ce895c9…`)과 `IsletEngine_release(x64).dll`을 함께 패치하는 패치 파일 하나
 (16곳) + `Gui\game_menu_top.xml`·`Gui\game_menu.xml` 버튼 두 개(노드/이벤트 id 31001 들어가기, 31002 나가기) +
 `gui_skin\02_Mainmenu\Btn_FreeCam*.png` + `Language\word.xml` 병합(`MENU_FREECAM`, `MENU_FREECAM_EXIT`).
 
@@ -163,3 +164,13 @@ LockRect 가능, mip 단계도 채움). 클릭 판정은 `core->vt[0x158]` = `IM
 `NarewDoom.dll`은 두 TimeDateStamp(0x6abf5433, 0x6ad1b98b)를 받습니다. IsletEngine은 크기부터 달라졌습니다(실제 코드
 변경, sha256 `abe3d06c…0670`, 4,042,240 → 4,047,360바이트). 모드 매니저는 업데이트된 DLL을 새 원본으로 보고 옛 `.orig`를
 버렸고(설계대로), 옛 빌드용 시야거리 슬라이더·프리캠 패치는 "버전이 다릅니다"로 건너뛰었습니다.
+
+새 IsletEngine으로 옮기기(2026-10-18): 패치가 건드리거나 부르는 함수를 export 이름(내보내지 않은 조각은 상대 변위를 가린
+바이트 서명)으로 새 빌드에서 찾아 capstone으로 명령어를 하나씩 비교 → **모두 명령어 단위로 같고 위치만 옮겨졌습니다**
+(분기·call·RIP 대상도 옛→새 대응이 맞음; 바뀐 것은 말풍선 `ISpeechTypeAni` 추가 등 다른 곳). 코드 동굴 `CSky::operator=`
+(0x180033af0)·`COption` 복사 생성자(0x1800fb730)는 새 빌드에서도 아무도 부르지 않고(`caves.py` 전수 검사), `.text` 끝 빈
+자리는 240바이트(0x180205d10~0x180205e00), import 슬롯(wsprintfW, Sleep, `Nw::Interpolate`)은 같은 자리입니다. 그래서
+`mod_view_distance.py`(`BUILDS`)와 `mod_freecam.py`(`IE_BUILDS`, `N2_SHAS`)는 sha256별 주소 표를 갖고, 받은 원본의
+빌드를 골라 그 sha256으로 고정합니다(두 빌드 모두 지원; 옛 빌드로는 예전 패치 파일과 바이트까지 같음). 새 빌드 패치는
+옛 패치(게임에서 확인됨)를 주소만 옮긴 것과 명령어 단위로 같음을 capstone으로, Windows 로더 매핑(두 모드를 함께 넣은
+IsletEngine, 프리캠+DOOM을 함께 넣은 NarewEngine2)으로 확인했습니다. 새 빌드에서의 게임 안 확인은 아직입니다.
