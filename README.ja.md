@@ -295,7 +295,7 @@ my-mod/
 - `merge\` は項目単位なので、複数の MOD がそれぞれ同じテーブルに項目を追加してもすべて入ります。
 - **オリジナルのゲームファイルを丸ごと配布しないでください。** 変更・新規作成したものだけを入れてください（NarewStudio の「배포용 .zip 만들기」はそのように作ります）。
 - 詳しいルール（韓国語）：[docs/07-new-content.md](docs/07-new-content.md)
-- `patches\` はデータではなくエンジンのコードに組み込まれた動作を変えるときに使います（例：視野距離の段階、フリーカメラ、キャラクター選択画面で動く DOOM）。対象はエンジン DLL 4 つだけで、クライアント exe や Steam のファイルは拒否します。形式と安全ルール（韓国語）：[docs/10-code-patches.md](docs/10-code-patches.md)
+- `patches\` はデータではなくエンジンのコードに組み込まれた動作を変えるときに使います（例：視野距離の段階、フリーカメラ）。対象はエンジン DLL 4 つだけで、クライアント exe や Steam のファイルは拒否します。形式と安全ルール（韓国語）：[docs/10-code-patches.md](docs/10-code-patches.md)
 
 ## AI エージェントとの接続
 
@@ -509,7 +509,7 @@ NarewStudio・MOD マネージャー・AI エージェントが共有する設�
 | UI 効果音の置き換え、GUI 画像・配置の変更 | ✅ ゲームで確認済み |
 | ワールド編集（ブロック・家具）+ マイワールドに適用 | ✅ ゲームで確認済み |
 | 1024 より大きいワールド（最大 4096×4096、`world_new`） | ✅ ゲームで確認済み |
-| エンジンのコードパッチ（`patches\`：視野距離スライダー・チャンク読み込み、フリーカメラ、キャラクター選択画面の DOOM） | ✅ ゲームで確認済み |
+| エンジンのコードパッチ（`patches\`：視野距離スライダー・チャンク読み込み、フリーカメラ） | ✅ ゲームで確認済み |
 | キャラクター差し替え（別のモデルをプレイヤーキャラクターに、男女・NPC） | ✅ ゲームで確認済み |
 | 編集したモデル・アニメーションのゲーム内での読み込み | ⚠ 未確認 |
 | 「新しいアイテム」の一般アイテムの効果、天気・時間の BGM | ⚠ 未確認 |
@@ -526,8 +526,7 @@ narew/       フォーマットライブラリ + コマンドラインツール�
 studio/      NarewStudio —— core、svc_*、creator（新規コンテンツ）、worldedit（画面なしのワールド編集）、gl/（OpenGL）、ui/（Qt）、agent/（AI エージェント）
 modmanager/  NarewModManager —— core（適用エンジン）、ui
 tests/       テスト（偽のゲームフォルダーを使用）
-tools/       build_exe.py（exe ビルド）、mod_view_distance.py・mod_freecam.py・mod_doom.py（コードパッチのサンプル MOD 作成）、PE/RTTI 解析・モデル検証スクリプト
-native/      narewdoom/ —— DOOM MOD の NarewDoom.dll のソース（doomgeneric ベース、GPL-2.0）
+tools/       build_exe.py（exe ビルド）、mod_view_distance.py・mod_freecam.py（コードパッチのサンプル MOD 作成）、PE/RTTI 解析・モデル検証スクリプト
 docs/        技術ドキュメント（韓国語）
 AGENTS.md    AI エージェント向けの案内。.mcp.json = Claude Code 用の MCP サーバー登録
 ```
@@ -543,12 +542,11 @@ AGENTS.md    AI エージェント向けの案内。.mcp.json = Claude Code 用�
 | [07 新規コンテンツ](docs/07-new-content.md) | エンジンの上限、テーブルマージのルール |
 | [08 GUI レイアウト](docs/08-gui-layout.md) | `Gui\*.xml` の編集 |
 | [09 AI エージェント](docs/09-ai-agents.md) | 117 個のツール、接続、安全装置 |
-| [10 コードパッチ](docs/10-code-patches.md) | MOD 形式 3 `patches/`、視野距離スライダー・フリーカメラ・DOOM の解析 |
+| [10 コードパッチ](docs/10-code-patches.md) | MOD 形式 3 `patches/`、視野距離スライダー・フリーカメラの解析 |
 | [11 キャラクター差し替え](docs/11-character-swap.md) | 別の 3D モデルを Islet キャラクターに：形式、リターゲット方法、制限 |
 
 ドキュメントに出てくる `re/` の解析成果物（ゲームバイナリのダンプ・逆コンパイル結果）は、このリポジトリには含めていません。
 
 ## ライセンス
 
-[MIT](LICENSE)。ただし `native/narewdoom/`（NarewDoom.dll）は doomgeneric（Chocolate Doom）ベースのため
-GPL-2.0 です（[native/narewdoom/LICENSE](native/narewdoom/LICENSE)）。Islet Online および関連する商標・リソースの権利は各権利者に帰属します。
+[MIT](LICENSE)。Islet Online および関連する商標・リソースの権利は各権利者に帰属します。

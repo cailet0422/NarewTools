@@ -34,8 +34,7 @@ explains workflows: `overview`, `world`, `content`, `gui`, `sound`, `models`, `m
    + apply to my world, picture pixel-art walls, worlds up to 4096×4096 (`world_new` + `new_world`), engine code
    patches (`patches/`: the view distance slider from `tools/mod_view_distance.py`, the free camera from
    `tools/mod_freecam.py` - one patch file over NarewEngine2 + IsletEngine; both on the 2026-10-03 and the 2026-10-16
-   builds), DOOM on the character select screen (`tools/mod_doom.py` + `native/narewdoom`: the first patch that
-   loads a DLL of ours; `tests/test_narewdoom.py` runs it without the game), the character swap (`character_swap`:
+   builds), the character swap (`character_swap`:
    an FBX model as F1 + M1 + human NPCs with retargeted animations). **Not verified yet** (say so when you
    deliver them): other edits of models/animations in game, generic new items' effects,
    weather/time BGM, multiplayer.

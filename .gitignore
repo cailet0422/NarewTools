@@ -15,3 +15,8 @@ re/
 # logs / scratch
 *.log
 *.tmp
+
+# local only, not published: the DOOM-on-character-select mod (NarewDoom.dll source, builder, tests)
+native/
+tools/mod_doom.py
+tests/test_narewdoom.*
