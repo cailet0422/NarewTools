@@ -295,7 +295,7 @@ my-mod/
 - `merge\` 按条目生效，因此多个模组可以各自向同一张表添加条目。
 - **请勿整体分发原版游戏文件。** 只包含你修改或新建的内容（NarewStudio 的"배포용 .zip 만들기"就是这样生成的）。
 - 详细规则（韩语）：[docs/07-new-content.md](docs/07-new-content.md)
-- `patches\` 用于修改写在引擎代码里而不是数据里的行为（例如视野距离档位、自由视角）。目标只能是四个引擎 DLL，客户端 exe 和 Steam 文件会被拒绝。格式与安全规则（韩语）：[docs/10-code-patches.md](docs/10-code-patches.md)
+- `patches\` 用于修改写在引擎代码里而不是数据里的行为（例如视野距离档位、自由视角、在角色选择界面运行的 DOOM）。目标只能是四个引擎 DLL，客户端 exe 和 Steam 文件会被拒绝。格式与安全规则（韩语）：[docs/10-code-patches.md](docs/10-code-patches.md)
 
 ## 连接 AI 智能体
 
@@ -508,7 +508,7 @@ NarewStudio、模组管理器和 AI 智能体共用的设置与已安装模组�
 | 替换 UI 音效、修改 GUI 图片和布局 | ✅ 已在游戏中验证 |
 | 世界编辑（方块、家具）+ 应用到我的世界 | ✅ 已在游戏中验证 |
 | 大于 1024 的世界（最大 4096×4096，`world_new`） | ✅ 已在游戏中验证 |
-| 引擎代码补丁（`patches\`：视野距离滑块与区域加载、自由视角） | ✅ 已在游戏中验证 |
+| 引擎代码补丁（`patches\`：视野距离滑块与区域加载、自由视角、角色选择界面的 DOOM） | ✅ 已在游戏中验证 |
 | 替换角色（用其他模型作为玩家角色，男女·NPC） | ✅ 已在游戏中验证 |
 | 修改后的模型/动画在游戏中加载 | ⚠ 尚未验证 |
 | "新物品"中普通物品的效果、天气/时间背景音乐 | ⚠ 尚未验证 |
@@ -525,7 +525,8 @@ narew/       格式库 + 命令行工具（pack、brick、模型 ↔ glTF、模�
 studio/      NarewStudio —— core、svc_*、creator（新内容）、worldedit（无界面世界编辑）、gl/（OpenGL）、ui/（Qt）、agent/（AI 智能体）
 modmanager/  NarewModManager —— core（应用引擎）、ui
 tests/       测试（使用假游戏文件夹）
-tools/       build_exe.py（构建 exe）、mod_view_distance.py / mod_freecam.py（生成代码补丁示例模组）、PE/RTTI 分析与模型校验脚本
+tools/       build_exe.py（构建 exe）、mod_view_distance.py / mod_freecam.py / mod_doom.py（生成代码补丁示例模组）、PE/RTTI 分析与模型校验脚本
+native/      narewdoom/ —— DOOM 模组的 NarewDoom.dll 源码（基于 doomgeneric，GPL-2.0）
 docs/        技术文档（韩语）
 AGENTS.md    给 AI 智能体的说明；.mcp.json = Claude Code 的 MCP 服务器注册
 ```
@@ -541,11 +542,12 @@ AGENTS.md    给 AI 智能体的说明；.mcp.json = Claude Code 的 MCP 服务�
 | [07 新内容](docs/07-new-content.md) | 引擎上限、表合并规则 |
 | [08 GUI 布局](docs/08-gui-layout.md) | 编辑 `Gui\*.xml` |
 | [09 AI 智能体](docs/09-ai-agents.md) | 117 个工具、连接、安全机制 |
-| [10 代码补丁](docs/10-code-patches.md) | 模组格式 3 `patches/`、视野距离滑块与自由视角的分析 |
+| [10 代码补丁](docs/10-code-patches.md) | 模组格式 3 `patches/`、视野距离滑块、自由视角与 DOOM 的分析 |
 | [11 替换角色](docs/11-character-swap.md) | 用其他 3D 模型作为 Islet 角色：格式、重定向方法、限制 |
 
 文档中提到的 `re/` 分析产物（游戏二进制转储、反编译结果）未包含在本仓库中。
 
 ## 许可证
 
-[MIT](LICENSE)。Islet Online 及其相关商标和资源的权利归各自的权利人所有。
+[MIT](LICENSE)。`native/narewdoom/`（NarewDoom.dll）除外：它基于 doomgeneric（Chocolate Doom），
+采用 GPL-2.0（[native/narewdoom/LICENSE](native/narewdoom/LICENSE)）。Islet Online 及其相关商标和资源的权利归各自的权利人所有。

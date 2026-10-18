@@ -291,7 +291,7 @@ NarewStudio는 열 때마다 빈 번호를 다시 계산합니다. 게임 업데
 - `merge\` 는 항목 단위라서 여러 모드가 같은 표에 각자 항목을 더해도 모두 들어갑니다.
 - **원본 게임 파일을 통째로 배포하지 마세요.** 바꾸거나 새로 만든 것만 담으세요(NarewStudio의 "배포용 .zip 만들기" 가 그렇게 만듭니다).
 - 자세한 규칙: [docs/07-new-content.md](docs/07-new-content.md)
-- `patches\` 는 데이터가 아니라 엔진 코드에 박힌 동작을 바꿀 때 씁니다(예: 시야거리 단계, 프리캠). 대상은 엔진 DLL 네 개뿐이고 클라이언트 exe·Steam 파일은 거부합니다. 형식과 안전 규칙: [docs/10-code-patches.md](docs/10-code-patches.md)
+- `patches\` 는 데이터가 아니라 엔진 코드에 박힌 동작을 바꿀 때 씁니다(예: 시야거리 단계, 프리캠, 캐릭터 선택 화면에서 도는 DOOM). 대상은 엔진 DLL 네 개뿐이고 클라이언트 exe·Steam 파일은 거부합니다. 형식과 안전 규칙: [docs/10-code-patches.md](docs/10-code-patches.md)
 
 ## AI 에이전트 연결
 
@@ -505,7 +505,7 @@ NarewStudio·모드 매니저·AI 에이전트가 함께 보는 설정과 설치
 | UI 효과음 교체, GUI 그림·배치 변경 | ✅ 게임에서 확인 |
 | 월드 편집(블록·가구) + 내 월드에 적용 | ✅ 게임에서 확인 |
 | 1024보다 큰 월드 (최대 4096×4096, `world_new`) | ✅ 게임에서 확인 |
-| 엔진 코드 패치 (`patches\`: 시야거리 슬라이더·청크 로딩, 프리캠) | ✅ 게임에서 확인 |
+| 엔진 코드 패치 (`patches\`: 시야거리 슬라이더·청크 로딩, 프리캠, 캐릭터 선택 화면 DOOM) | ✅ 게임에서 확인 |
 | 캐릭터 교체 (다른 모델을 플레이어 캐릭터로, 남녀·NPC) | ✅ 게임에서 확인 |
 | 수정한 모델·애니메이션의 게임 내 로드 | ⚠ 아직 미확인 |
 | "새 아이템" 일반 아이템의 효과, 날씨·시간 배경음 | ⚠ 아직 미확인 |
@@ -522,7 +522,8 @@ narew/       포맷 라이브러리 + 명령줄 도구 (pack, brick, model ↔ g
 studio/      NarewStudio — core, svc_*, creator(새 리소스), worldedit(화면 없는 월드 편집), gl/(OpenGL), ui/(Qt), agent/(AI 에이전트)
 modmanager/  NarewModManager — core(적용 엔진), ui
 tests/       테스트 (가짜 게임 폴더 사용)
-tools/       build_exe.py(exe 빌드), mod_view_distance.py·mod_freecam.py(코드 패치 예제 모드 만들기), PE/RTTI 분석·모델 검증 스크립트
+tools/       build_exe.py(exe 빌드), mod_view_distance.py·mod_freecam.py·mod_doom.py(코드 패치 예제 모드 만들기), PE/RTTI 분석·모델 검증 스크립트
+native/      narewdoom/ — DOOM 모드의 NarewDoom.dll 소스 (doomgeneric 기반, GPL-2.0)
 docs/        기술 문서 (한국어)
 AGENTS.md    AI 에이전트용 안내, .mcp.json = Claude Code용 MCP 서버 등록
 ```
@@ -538,11 +539,12 @@ AGENTS.md    AI 에이전트용 안내, .mcp.json = Claude Code용 MCP 서버 �
 | [07 새 콘텐츠](docs/07-new-content.md) | 엔진 한도, 표 병합 규칙 |
 | [08 GUI 레이아웃](docs/08-gui-layout.md) | `Gui\*.xml` 편집 |
 | [09 AI 에이전트](docs/09-ai-agents.md) | 도구 117개, 연결, 안전장치 |
-| [10 코드 패치](docs/10-code-patches.md) | 모드 형식 3 `patches/`, 시야거리 슬라이더·프리캠 분석 |
+| [10 코드 패치](docs/10-code-patches.md) | 모드 형식 3 `patches/`, 시야거리 슬라이더·프리캠·DOOM 분석 |
 | [11 캐릭터 교체](docs/11-character-swap.md) | 다른 3D 모델을 아일렛 캐릭터로: 형식, 리타깃 방법, 한계 |
 
 문서에 나오는 `re/` 분석 산출물(게임 바이너리 덤프·디컴파일 결과)은 저장소에 포함하지 않았습니다.
 
 ## 라이선스
 
-[MIT](LICENSE). 아일렛 온라인과 관련 상표·리소스의 권리는 각 권리자에게 있습니다.
+[MIT](LICENSE). 단, `native/narewdoom/`(NarewDoom.dll)은 doomgeneric(Chocolate Doom) 기반이라
+GPL-2.0입니다([native/narewdoom/LICENSE](native/narewdoom/LICENSE)). 아일렛 온라인과 관련 상표·리소스의 권리는 각 권리자에게 있습니다.

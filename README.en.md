@@ -295,7 +295,7 @@ A `merge\` patch (UTF-8). An entry with the same key is replaced whole; otherwis
 - `merge\` works per entry, so several mods can each add entries to the same table.
 - **Do not redistribute whole original game files.** Include only what you changed or created (NarewStudio's "배포용 .zip 만들기" does exactly that).
 - Details (Korean): [docs/07-new-content.md](docs/07-new-content.md)
-- `patches\` changes behaviour that is code, not data (e.g. the view distance levels, a free camera). Only the four engine DLLs can be targets; the client exe and Steam files are refused. Format and safety rules (Korean): [docs/10-code-patches.md](docs/10-code-patches.md)
+- `patches\` changes behaviour that is code, not data (e.g. the view distance levels, a free camera, DOOM running on the character select screen). Only the four engine DLLs can be targets; the client exe and Steam files are refused. Format and safety rules (Korean): [docs/10-code-patches.md](docs/10-code-patches.md)
 
 ## Connecting AI agents
 
@@ -509,7 +509,7 @@ Up to 2.4.0 the settings and installed mods that NarewStudio, the mod manager an
 | UI sound replacement, GUI images and layout changes | ✅ verified in game |
 | World editing (blocks, furniture) + apply to my world | ✅ verified in game |
 | Worlds bigger than 1024 (up to 4096×4096, `world_new`) | ✅ verified in game |
-| Engine code patches (`patches\`: view distance slider + region loading, free camera) | ✅ verified in game |
+| Engine code patches (`patches\`: view distance slider + region loading, free camera, DOOM on the character select screen) | ✅ verified in game |
 | Character swap (another model as the player character, both genders + NPCs) | ✅ verified in game |
 | Edited models/animations loading in game | ⚠ not verified yet |
 | Effects of generic new items, weather/time background music | ⚠ not verified yet |
@@ -526,7 +526,8 @@ narew/       format library + command line tools (pack, brick, model ↔ glTF, m
 studio/      NarewStudio — core, svc_*, creator (new content), worldedit (headless world editing), gl/ (OpenGL), ui/ (Qt), agent/ (AI agents)
 modmanager/  NarewModManager — core (apply engine), ui
 tests/       tests (use a fake game folder)
-tools/       build_exe.py (exe build), mod_view_distance.py / mod_freecam.py (build the code patch example mods), PE/RTTI analysis and model validation scripts
+tools/       build_exe.py (exe build), mod_view_distance.py / mod_freecam.py / mod_doom.py (build the code patch example mods), PE/RTTI analysis and model validation scripts
+native/      narewdoom/ — source of NarewDoom.dll for the DOOM mod (based on doomgeneric, GPL-2.0)
 docs/        technical documents (Korean)
 AGENTS.md    instructions for AI agents; .mcp.json registers the MCP server for Claude Code
 ```
@@ -542,11 +543,12 @@ AGENTS.md    instructions for AI agents; .mcp.json registers the MCP server for 
 | [07 New content](docs/07-new-content.md) | Engine limits, table merge rules |
 | [08 GUI layout](docs/08-gui-layout.md) | Editing `Gui\*.xml` |
 | [09 AI agents](docs/09-ai-agents.md) | 117 tools, connection, safety |
-| [10 Code patches](docs/10-code-patches.md) | Mod format 3 `patches/`, view distance slider and free camera analysis |
+| [10 Code patches](docs/10-code-patches.md) | Mod format 3 `patches/`, view distance slider, free camera and DOOM analysis |
 | [11 Character swap](docs/11-character-swap.md) | Another 3D model as the Islet character: formats, retargeting, limits |
 
 The `re/` analysis output mentioned in the docs (game binary dumps, decompiler output) is not included in this repository.
 
 ## License
 
-[MIT](LICENSE). Islet Online and its trademarks and assets belong to their respective owners.
+[MIT](LICENSE), except `native/narewdoom/` (NarewDoom.dll), which is based on doomgeneric (Chocolate Doom) and
+is GPL-2.0 ([native/narewdoom/LICENSE](native/narewdoom/LICENSE)). Islet Online and its trademarks and assets belong to their respective owners.

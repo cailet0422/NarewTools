@@ -157,7 +157,8 @@ LockRect 가능, mip 단계도 채움). 클릭 판정은 `core->vt[0x158]` = `IM
 돌고, 노드가 안 보이면(또는 다른 코어만 200ms 그려지면) 멈추고 focus를 내립니다. DOOM 노드는 `character_select.xml`의 **두 번째** 최상위 노드입니다: 클라이언트(`CCharacterSelect`, exe 0x1400b30f2)가 `IGUIParser::GetFirstNode()`를 캐릭터 패널로 보고 그 안의 버튼 60/61/62에 `SetVisible`을 부르므로, 첫 자리에 넣었던 1.0.1은 들어가자마자 NULL 접근으로 튕겼습니다(게임 안 첫 시험, 미니덤프로 확인). `exit()`/`I_Error`/Quit은 게임을
 끄지 않게 고쳤습니다(스레드만 끝 / 제목 화면). 엔진 빌드가 다르거나 예외가 나면 DLL이 스스로 꺼짐(SEH,
 `문서\NarewStudio\NarewDoom\narewdoom.log`). 모드 매니저는 팩에 없는 `NarewDoom.dll`, `NarewDoom\*`를 낱개 파일로
-설치하고 복구 때 지웁니다(가짜 게임 폴더에서 프리캠과 함께 적용·복구 확인). 게임 안에서는 아직 확인 안 됨.
+설치하고 복구 때 지웁니다(가짜 게임 폴더에서 프리캠과 함께 적용·복구 확인). 1.0.2가 2026-10-18 게임 안에서 확인됨
+(프리캠·시야거리 슬라이더와 함께 적용).
 
 2026-10-16 Steam 업데이트: NarewEngine2는 **코드가 바이트 단위로 같고** 헤더·디버그 타임스탬프와 PDB age(2→3)만
 바뀌었습니다(12바이트) → DOOM 패치는 두 빌드 모두 같은 바이트, `mod_doom.py`는 찾은 원본의 sha256으로 고정하고
@@ -173,4 +174,4 @@ LockRect 가능, mip 단계도 채움). 클릭 판정은 `core->vt[0x158]` = `IM
 `mod_view_distance.py`(`BUILDS`)와 `mod_freecam.py`(`IE_BUILDS`, `N2_SHAS`)는 sha256별 주소 표를 갖고, 받은 원본의
 빌드를 골라 그 sha256으로 고정합니다(두 빌드 모두 지원; 옛 빌드로는 예전 패치 파일과 바이트까지 같음). 새 빌드 패치는
 옛 패치(게임에서 확인됨)를 주소만 옮긴 것과 명령어 단위로 같음을 capstone으로, Windows 로더 매핑(두 모드를 함께 넣은
-IsletEngine, 프리캠+DOOM을 함께 넣은 NarewEngine2)으로 확인했습니다. 새 빌드에서의 게임 안 확인은 아직입니다.
+IsletEngine, 프리캠+DOOM을 함께 넣은 NarewEngine2)으로 확인했습니다. 2026-10-18 새 빌드에서 게임 안 확인됨(DOOM과 함께 적용).
