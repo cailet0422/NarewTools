@@ -134,3 +134,32 @@ IsletEngine 쪽 코드는 `Nw::Interpolate` import(IAT 0x180206530)로 NarewEngi
 청크 로딩은 따로 고칠 필요 없음: `IBrickGroupManager::UpdateRegion`이 월드 카메라(world+0x308)의 `GetAt()`을 중심으로
 쓰는데, 프리캠에선 at = 눈 앞 1칸. 플레이어 쪽 영역이 내려가도 `ICreature::UpdateFalling`은 안 불러온 영역에서
 중력을 쓰지 않습니다. 2026-10-15 게임 안에서 확인됨(버튼·이동·GUI 숨김·청크 로딩·복귀).
+
+## 사례: 캐릭터 선택 화면 DOOM (`tools/mod_doom.py` + `NarewDoom.dll`)
+
+코드 패치가 **엔진 밖 DLL**을 불러오는 첫 모드입니다. DOOM 자체는 `native/narewdoom/`(doomgeneric 사본 + 연결 코드,
+GPL-2.0)에서 `python native/narewdoom/build.py`로 빌드하고, `python tools/mod_doom.py <게임> <프로젝트> --wad doom1.wad`가
+모드를 만듭니다. 시험: `python tests/test_narewdoom.py <게임> <임시 폴더> <wad>` (실제 D3D9 텍스처 + 매핑만 한
+NarewEngine2, 패치된 엔진 코드를 직접 실행하는 `--engine` 단계 포함, 소리는 `NAREWDOOM_SILENT=1`).
+
+| 위치 (NarewEngine2 2026-10-03 `40d2a2fc…` / 2026-10-16 `3ce895c9…`) | 내용 |
+|---|---|
+| `IGUICore::Render()` 0x180032930 (9바이트) | 새 코드로 점프: 처음 한 번 `LoadLibraryW(L"NarewDoom.dll")`(게임 폴더) + `GetProcAddress`(N2 자신의 import), 매 프레임 `NarewDoom_Frame(core, &focus)` 후 원래 본문으로 |
+| `IKeyboard::Update` 0x18014710c (`call [GetAsyncKeyState]`, 6바이트) | 도우미 호출: `focus`가 서 있으면 0(안 눌림), 아니면 진짜 함수로 tail jump — 게임 키보드 폴링만 막음(마우스 그대로) |
+| 코드 동굴 `IGUICore::operator=` 0x1800251b0 | 위 두 루틴 + 문자열 (프리캠은 같은 클래스의 복사 생성자를 씀) |
+| `.data` 페이지 끝 0x180755f00 | focus / Frame 주소 / 시도함 — 섹션 가상 크기 밖이지만 같은 페이지라 로더가 매핑(쓰기 가능, 0)함을 확인. 헤더를 안 바꿔서 프리캠(0x180755c00, 가상 크기 패치)과 겹치지 않음 |
+
+DLL 쪽(`narewdoom.c`): `core->Find(31100)`(vt 0x100) → `IGUIImage`(vtable 0x180665b68 확인) → `IsExactlyVisible`(vt 0xb0)
+→ `GetTexture`(vt 0x388) → `CDirectX9Texture2D`(vtable 0x1806743c8) `+0x58` = `IDirect3DTexture9`(D3DPOOL_MANAGED라
+LockRect 가능, mip 단계도 채움). 클릭 판정은 `core->vt[0x158]` = `IMouse`(+0x38 HWND, +0x50/+0x54 GUI 좌표)와
+`IGUINode::IsPosOn`(vt 0x2f8). 키는 게임 창 서브클래싱(WM_KEYDOWN/UP, 포커스 동안 IME 끔). DOOM은 자기 스레드에서
+돌고, 노드가 안 보이면(또는 다른 코어만 200ms 그려지면) 멈추고 focus를 내립니다. DOOM 노드는 `character_select.xml`의 **두 번째** 최상위 노드입니다: 클라이언트(`CCharacterSelect`, exe 0x1400b30f2)가 `IGUIParser::GetFirstNode()`를 캐릭터 패널로 보고 그 안의 버튼 60/61/62에 `SetVisible`을 부르므로, 첫 자리에 넣었던 1.0.1은 들어가자마자 NULL 접근으로 튕겼습니다(게임 안 첫 시험, 미니덤프로 확인). `exit()`/`I_Error`/Quit은 게임을
+끄지 않게 고쳤습니다(스레드만 끝 / 제목 화면). 엔진 빌드가 다르거나 예외가 나면 DLL이 스스로 꺼짐(SEH,
+`문서\NarewStudio\NarewDoom\narewdoom.log`). 모드 매니저는 팩에 없는 `NarewDoom.dll`, `NarewDoom\*`를 낱개 파일로
+설치하고 복구 때 지웁니다(가짜 게임 폴더에서 프리캠과 함께 적용·복구 확인). 게임 안에서는 아직 확인 안 됨.
+
+2026-10-16 Steam 업데이트: NarewEngine2는 **코드가 바이트 단위로 같고** 헤더·디버그 타임스탬프와 PDB age(2→3)만
+바뀌었습니다(12바이트) → DOOM 패치는 두 빌드 모두 같은 바이트, `mod_doom.py`는 찾은 원본의 sha256으로 고정하고
+`NarewDoom.dll`은 두 TimeDateStamp(0x6abf5433, 0x6ad1b98b)를 받습니다. IsletEngine은 크기부터 달라졌습니다(실제 코드
+변경, sha256 `abe3d06c…0670`, 4,042,240 → 4,047,360바이트). 모드 매니저는 업데이트된 DLL을 새 원본으로 보고 옛 `.orig`를
+버렸고(설계대로), 옛 빌드용 시야거리 슬라이더·프리캠 패치는 "버전이 다릅니다"로 건너뛰었습니다.

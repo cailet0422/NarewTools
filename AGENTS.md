@@ -36,7 +36,8 @@ explains workflows: `overview`, `world`, `content`, `gui`, `sound`, `models`, `m
    `tools/mod_freecam.py` - one patch file over NarewEngine2 + IsletEngine), the character swap (`character_swap`:
    an FBX model as F1 + M1 + human NPCs with retargeted animations). **Not verified yet** (say so when you
    deliver them): other edits of models/animations in game, generic new items' effects,
-   weather/time BGM, multiplayer.
+   weather/time BGM, multiplayer, DOOM on the character select screen (`tools/mod_doom.py` + `native/narewdoom`,
+   the first patch that loads a DLL of ours; `tests/test_narewdoom.py` runs it without the game).
    A new code patch is a new risk every time: check it with capstone and the Windows loader, keep it pinned to the
    DLL sha256, and say it is untested in game until the user confirms.
 
